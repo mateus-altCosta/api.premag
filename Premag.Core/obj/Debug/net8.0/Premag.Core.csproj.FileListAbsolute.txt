@@ -1,0 +1,11 @@
+C:\Projeto\PREMAG\api.premag\Premag.Core\bin\Debug\net8.0\Premag.Core.deps.json
+C:\Projeto\PREMAG\api.premag\Premag.Core\bin\Debug\net8.0\Premag.Core.dll
+C:\Projeto\PREMAG\api.premag\Premag.Core\bin\Debug\net8.0\Premag.Core.pdb
+C:\Projeto\PREMAG\api.premag\Premag.Core\obj\Debug\net8.0\Premag.Core.GeneratedMSBuildEditorConfig.editorconfig
+C:\Projeto\PREMAG\api.premag\Premag.Core\obj\Debug\net8.0\Premag.Core.AssemblyInfoInputs.cache
+C:\Projeto\PREMAG\api.premag\Premag.Core\obj\Debug\net8.0\Premag.Core.AssemblyInfo.cs
+C:\Projeto\PREMAG\api.premag\Premag.Core\obj\Debug\net8.0\Premag.Core.csproj.CoreCompileInputs.cache
+C:\Projeto\PREMAG\api.premag\Premag.Core\obj\Debug\net8.0\Premag.Core.dll
+C:\Projeto\PREMAG\api.premag\Premag.Core\obj\Debug\net8.0\refint\Premag.Core.dll
+C:\Projeto\PREMAG\api.premag\Premag.Core\obj\Debug\net8.0\Premag.Core.pdb
+C:\Projeto\PREMAG\api.premag\Premag.Core\obj\Debug\net8.0\ref\Premag.Core.dll

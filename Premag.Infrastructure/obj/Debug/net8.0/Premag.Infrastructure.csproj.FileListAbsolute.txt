@@ -1,0 +1,17 @@
+C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\bin\Debug\net8.0\Premag.Infrastructure.deps.json
+C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\bin\Debug\net8.0\Premag.Infrastructure.runtimeconfig.json
+C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\bin\Debug\net8.0\Premag.Infrastructure.dll
+C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\bin\Debug\net8.0\Premag.Infrastructure.pdb
+C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\bin\Debug\net8.0\Premag.Core.dll
+C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\bin\Debug\net8.0\Premag.Core.pdb
+C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\obj\Debug\net8.0\Premag.Infrastructure.csproj.AssemblyReference.cache
+C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\obj\Debug\net8.0\Premag.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
+C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\obj\Debug\net8.0\Premag.Infrastructure.AssemblyInfoInputs.cache
+C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\obj\Debug\net8.0\Premag.Infrastructure.AssemblyInfo.cs
+C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\obj\Debug\net8.0\Premag.Infrastructure.csproj.CoreCompileInputs.cache
+C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\obj\Debug\net8.0\Premag.I.DC5A3B54.Up2Date
+C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\obj\Debug\net8.0\Premag.Infrastructure.dll
+C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\obj\Debug\net8.0\refint\Premag.Infrastructure.dll
+C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\obj\Debug\net8.0\Premag.Infrastructure.pdb
+C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\obj\Debug\net8.0\Premag.Infrastructure.genruntimeconfig.cache
+C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\obj\Debug\net8.0\ref\Premag.Infrastructure.dll
