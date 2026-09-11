@@ -109,3 +109,46 @@ public class ImportacaoResultadoDto
     public int Ignorados { get; set; }
     public IReadOnlyList<string> Avisos { get; set; } = [];
 }
+
+public class FechamentoDiaDto
+{
+    public DateOnly Data { get; set; }
+    public Guid? EquipeId { get; set; }
+    public string Escopo { get; set; } = string.Empty;
+    public bool Fechado { get; set; }
+    public bool FechadoPorCalendario { get; set; }
+    public DateTimeOffset? FechadoEm { get; set; }
+    public string? FechadoPorNome { get; set; }
+    public DateTimeOffset? ReabertoEm { get; set; }
+    public string? MotivoReabertura { get; set; }
+    public int DiasFechamento { get; set; }
+    public int ApontamentosAbertos { get; set; }
+    public int PresentesSemServico { get; set; }
+    public int Fotos { get; set; }
+    public decimal HorasApontadas { get; set; }
+}
+
+public class FecharDiaDto
+{
+    public DateOnly? Data { get; set; }
+    public Guid? EquipeId { get; set; }
+}
+
+public class ReabrirDiaDto
+{
+    public DateOnly? Data { get; set; }
+    public Guid? EquipeId { get; set; }
+    public string MotivoReabertura { get; set; } = string.Empty;
+}
+
+public class InscreverPushDto
+{
+    public string Endpoint { get; set; } = string.Empty;
+    public string P256dh { get; set; } = string.Empty;
+    public string Auth { get; set; } = string.Empty;
+}
+
+public class PushChaveDto
+{
+    public string ChavePublica { get; set; } = string.Empty;
+}

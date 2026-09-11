@@ -18,17 +18,20 @@ public class FotoService : IFotoService
     private readonly IArquivoStorage _storage;
     private readonly IProducaoService _producao;
     private readonly IRelogio _relogio;
+    private readonly IFechamentoService _fechamento;
 
     public FotoService(
         ApplicationDbContext db,
         IArquivoStorage storage,
         IProducaoService producao,
-        IRelogio relogio)
+        IRelogio relogio,
+        IFechamentoService fechamento)
     {
         _db = db;
         _storage = storage;
         _producao = producao;
         _relogio = relogio;
+        _fechamento = fechamento;
     }
 
     public async Task<IReadOnlyList<FotoDto>> ListarAsync(
@@ -113,6 +116,11 @@ public class FotoService : IFotoService
         {
             throw new RegraNegocioException("RN-10", "Encarregado só registra foto da própria equipe.", 403);
         }
+
+        await _fechamento.GarantirAbertoAsync(
+            _relogio.HojeSaoPaulo,
+            colaborador?.EquipeId ?? frente.EquipeId,
+            cancellationToken);
 
         if (tipo == TipoFoto.Avanco && quantidade is > 0 && !frente.Etapa.Indireta)
         {

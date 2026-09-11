@@ -10,7 +10,7 @@
         "projectUniqueName": "C:\\Projeto\\PREMAG\\api.premag\\Premag.Core\\Premag.Core.csproj",
         "projectName": "Premag.Core",
         "projectPath": "C:\\Projeto\\PREMAG\\api.premag\\Premag.Core\\Premag.Core.csproj",
-        "packagesPath": "C:\\Users\\mateu\\AppData\\Local\\Temp\\cursor-sandbox-cache\\bc7ddc6caa8ad80edf9ae93150ecc9ac\\nuget",
+        "packagesPath": "C:\\Users\\mateu\\.nuget\\packages\\",
         "outputPath": "C:\\Projeto\\PREMAG\\api.premag\\Premag.Core\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
@@ -81,7 +81,7 @@
         "projectUniqueName": "C:\\Projeto\\PREMAG\\api.premag\\Premag.UnitTests\\Premag.UnitTests.csproj",
         "projectName": "Premag.UnitTests",
         "projectPath": "C:\\Projeto\\PREMAG\\api.premag\\Premag.UnitTests\\Premag.UnitTests.csproj",
-        "packagesPath": "C:\\Users\\mateu\\AppData\\Local\\Temp\\cursor-sandbox-cache\\bc7ddc6caa8ad80edf9ae93150ecc9ac\\nuget",
+        "packagesPath": "C:\\Users\\mateu\\.nuget\\packages\\",
         "outputPath": "C:\\Projeto\\PREMAG\\api.premag\\Premag.UnitTests\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [

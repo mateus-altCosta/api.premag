@@ -35,3 +35,20 @@ public interface IImportacaoService
     Task<ImportacaoResultadoDto> ImportarAfdAsync(string conteudo, UsuarioLogado quem, CancellationToken cancellationToken = default);
     Task<ImportacaoResultadoDto> ImportarColaboradoresAsync(string csv, UsuarioLogado quem, CancellationToken cancellationToken = default);
 }
+
+public interface IFechamentoService
+{
+    Task GarantirAbertoAsync(DateOnly data, Guid? equipeId, CancellationToken cancellationToken = default);
+    Task<FechamentoDiaDto> ObterAsync(DateOnly? data, Guid? equipeId, UsuarioLogado quem, CancellationToken cancellationToken = default);
+    Task<FechamentoDiaDto> FecharAsync(FecharDiaDto dto, UsuarioLogado quem, CancellationToken cancellationToken = default);
+    Task<FechamentoDiaDto> ReabrirAsync(ReabrirDiaDto dto, UsuarioLogado quem, CancellationToken cancellationToken = default);
+}
+
+public interface IPushService
+{
+    string? ChavePublica { get; }
+    Task InscreverAsync(InscreverPushDto dto, UsuarioLogado quem, CancellationToken cancellationToken = default);
+    Task DesinscreverAsync(string endpoint, UsuarioLogado quem, CancellationToken cancellationToken = default);
+    Task NotificarGestoresAsync(string titulo, string corpo, string url, CancellationToken cancellationToken = default);
+    Task NotificarEquipeAsync(Guid equipeId, string titulo, string corpo, string url, CancellationToken cancellationToken = default);
+}

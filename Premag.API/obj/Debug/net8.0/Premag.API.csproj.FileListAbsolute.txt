@@ -149,3 +149,7 @@ C:\Projeto\PREMAG\api.premag\Premag.API\bin\Debug\net8.0\runtimes\osx-arm64\nati
 C:\Projeto\PREMAG\api.premag\Premag.API\bin\Debug\net8.0\runtimes\osx-x64\native\libQuestPdfSkia.dylib
 C:\Projeto\PREMAG\api.premag\Premag.API\bin\Debug\net8.0\runtimes\win-x64\native\QuestPdfSkia.dll
 C:\Projeto\PREMAG\api.premag\Premag.API\bin\Debug\net8.0\runtimes\win-x86\native\QuestPdfSkia.dll
+C:\Projeto\PREMAG\api.premag\Premag.API\obj\Debug\net8.0\Premag.API.sourcelink.json
+C:\Projeto\PREMAG\api.premag\Premag.API\bin\Debug\net8.0\Newtonsoft.Json.dll
+C:\Projeto\PREMAG\api.premag\Premag.API\bin\Debug\net8.0\BouncyCastle.Crypto.dll
+C:\Projeto\PREMAG\api.premag\Premag.API\bin\Debug\net8.0\WebPush.dll

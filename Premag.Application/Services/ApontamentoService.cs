@@ -15,11 +15,13 @@ public class ApontamentoService : IApontamentoService
 {
     private readonly ApplicationDbContext _db;
     private readonly IRelogio _relogio;
+    private readonly IFechamentoService _fechamento;
 
-    public ApontamentoService(ApplicationDbContext db, IRelogio relogio)
+    public ApontamentoService(ApplicationDbContext db, IRelogio relogio, IFechamentoService fechamento)
     {
         _db = db;
         _relogio = relogio;
+        _fechamento = fechamento;
     }
 
     public async Task<TurnoDto> ObterTurnoAsync(
@@ -189,11 +191,11 @@ public class ApontamentoService : IApontamentoService
 
         var config = await ObterConfigAsync(cancellationToken);
         var dia = dto.Data ?? _relogio.HojeSaoPaulo;
-        GarantirDiaAberto(dia, config);
 
         var colaborador = await _db.Colaboradores.FirstOrDefaultAsync(c => c.Id == dto.ColaboradorId, cancellationToken)
             ?? throw new RegraNegocioException("COLABORADOR_NAO_ENCONTRADO", "Colaborador não encontrado.", 404);
         GarantirEscopoEquipe(quem, colaborador.EquipeId);
+        await _fechamento.GarantirAbertoAsync(dia, colaborador.EquipeId, cancellationToken);
 
         if (!colaborador.Ativo)
             throw new RegraNegocioException("COLABORADOR_INATIVO", "Colaborador inativo não recebe apontamento.", 422);
@@ -282,7 +284,7 @@ public class ApontamentoService : IApontamentoService
             return new EncerrarResultadoDto { Apontamento = Mapear(apontamento) };
 
         var config = await ObterConfigAsync(cancellationToken);
-        GarantirDiaAberto(apontamento.Data, config);
+        await _fechamento.GarantirAbertoAsync(apontamento.Data, apontamento.Colaborador.EquipeId, cancellationToken);
 
         var horaFim = LimitarHorario(dto.HoraFim, config, tetoAgora: !origemLote);
         if (horaFim <= apontamento.HoraInicio)
@@ -488,13 +490,6 @@ public class ApontamentoService : IApontamentoService
             return;
         if (quem.EquipeId != equipeId)
             throw new RegraNegocioException("RN-10", "Encarregado só aponta a própria equipe.", 403);
-    }
-
-    private void GarantirDiaAberto(DateOnly data, Configuracao config)
-    {
-        var limite = _relogio.HojeSaoPaulo.AddDays(-config.DiasFechamento);
-        if (data < limite)
-            throw new RegraNegocioException("RN-15", "Este dia já está fechado para apontamento.", 422);
     }
 
     private TimeOnly LimitarHorario(TimeOnly informado, Configuracao config, bool tetoAgora = true)

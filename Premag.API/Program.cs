@@ -113,13 +113,23 @@ builder.Services.AddScoped<IObraService, ObraService>();
 builder.Services.AddScoped<IApontamentoService, ApontamentoService>();
 builder.Services.AddScoped<IProducaoService, ProducaoService>();
 builder.Services.AddScoped<ISincronizacaoService, SincronizacaoService>();
-builder.Services.AddSingleton<IArquivoStorage, Premag.Infrastructure.Storage.LocalArquivoStorage>();
+builder.Services.AddHttpClient();
 builder.Services.AddScoped<IFotoService, FotoService>();
 builder.Services.AddScoped<IDiarioService, DiarioService>();
 builder.Services.AddScoped<IOcorrenciaService, OcorrenciaService>();
 builder.Services.AddScoped<IRelatorioService, RelatorioService>();
 builder.Services.AddScoped<IImportacaoService, ImportacaoService>();
+builder.Services.AddScoped<IFechamentoService, FechamentoService>();
+builder.Services.AddScoped<IPushService, PushService>();
 builder.Services.AddHostedService<Premag.API.Jobs.AlertaHostedService>();
+
+var storageProvider = builder.Configuration["Storage:Provider"];
+if (string.Equals(storageProvider, "Supabase", StringComparison.OrdinalIgnoreCase)
+    && !string.IsNullOrWhiteSpace(builder.Configuration["Storage:Supabase:Url"])
+    && !string.IsNullOrWhiteSpace(builder.Configuration["Storage:Supabase:Key"]))
+    builder.Services.AddSingleton<IArquivoStorage, Premag.Infrastructure.Storage.SupabaseArquivoStorage>();
+else
+    builder.Services.AddSingleton<IArquivoStorage, Premag.Infrastructure.Storage.LocalArquivoStorage>();
 
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o =>
 {

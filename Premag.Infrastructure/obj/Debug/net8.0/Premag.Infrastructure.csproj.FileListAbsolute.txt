@@ -15,3 +15,4 @@ C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\obj\Debug\net8.0\refint\Prema
 C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\obj\Debug\net8.0\Premag.Infrastructure.pdb
 C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\obj\Debug\net8.0\Premag.Infrastructure.genruntimeconfig.cache
 C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\obj\Debug\net8.0\ref\Premag.Infrastructure.dll
+C:\Projeto\PREMAG\api.premag\Premag.Infrastructure\obj\Debug\net8.0\Premag.Infrastructure.sourcelink.json

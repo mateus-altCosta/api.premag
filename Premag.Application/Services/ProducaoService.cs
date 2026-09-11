@@ -16,11 +16,13 @@ public class ProducaoService : IProducaoService
 {
     private readonly ApplicationDbContext _db;
     private readonly IRelogio _relogio;
+    private readonly IFechamentoService _fechamento;
 
-    public ProducaoService(ApplicationDbContext db, IRelogio relogio)
+    public ProducaoService(ApplicationDbContext db, IRelogio relogio, IFechamentoService fechamento)
     {
         _db = db;
         _relogio = relogio;
+        _fechamento = fechamento;
     }
 
     public async Task<ProducaoResultadoDto> RegistrarAsync(
@@ -56,6 +58,7 @@ public class ProducaoService : IProducaoService
             throw new RegraNegocioException("FRENTE_INDIRETA", "Não se lança quantidade em frente de parada.", 422);
 
         var dia = dto.Data ?? _relogio.HojeSaoPaulo;
+        await _fechamento.GarantirAbertoAsync(dia, frente.EquipeId, cancellationToken);
         var jaHoje = await _db.Producoes
             .Where(p => p.FrenteId == frente.Id && p.Data == dia)
             .SumAsync(p => p.Quantidade, cancellationToken);

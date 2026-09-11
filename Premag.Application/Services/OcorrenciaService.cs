@@ -15,11 +15,13 @@ public class OcorrenciaService : IOcorrenciaService
 {
     private readonly ApplicationDbContext _db;
     private readonly IRelogio _relogio;
+    private readonly IPushService _push;
 
-    public OcorrenciaService(ApplicationDbContext db, IRelogio relogio)
+    public OcorrenciaService(ApplicationDbContext db, IRelogio relogio, IPushService push)
     {
         _db = db;
         _relogio = relogio;
+        _push = push;
     }
 
     public async Task<IReadOnlyList<OcorrenciaDto>> ListarAsync(
@@ -162,6 +164,7 @@ public class OcorrenciaService : IOcorrenciaService
             alertaColabs, alertaFrentes);
 
         var existentes = await _db.Ocorrencias.Where(o => o.Data == dia).ToListAsync(cancellationToken);
+        var novas = new List<Ocorrencia>();
 
         foreach (var a in detectados)
         {
@@ -198,9 +201,33 @@ public class OcorrenciaService : IOcorrenciaService
             };
             _db.Ocorrencias.Add(nova);
             existentes.Add(nova);
+            novas.Add(nova);
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+        await NotificarNovasAsync(novas, cancellationToken);
+    }
+
+    private async Task NotificarNovasAsync(List<Ocorrencia> novas, CancellationToken cancellationToken)
+    {
+        if (novas.Count == 0)
+            return;
+
+        var gestores = novas.Where(o => o.Severidade == SeveridadeOcorrencia.GerenciaDiretoria).ToList();
+        if (gestores.Count > 0)
+        {
+            var (titulo, detalhe) = Titulo(gestores[0]);
+            var corpo = gestores.Count == 1 ? detalhe : $"{gestores.Count} alertas escalonados no turno.";
+            await _push.NotificarGestoresAsync(titulo, corpo, "/alertas", cancellationToken);
+        }
+
+        foreach (var grupo in novas.Where(o => o.EquipeId is Guid).GroupBy(o => o.EquipeId!.Value))
+        {
+            var primeira = grupo.First();
+            var (titulo, detalhe) = Titulo(primeira);
+            var corpo = grupo.Count() == 1 ? detalhe : $"{grupo.Count()} alertas na equipe.";
+            await _push.NotificarEquipeAsync(grupo.Key, titulo, corpo, "/alertas", cancellationToken);
+        }
     }
 
     private TimeOnly HorarioPlanta(Configuracao config)

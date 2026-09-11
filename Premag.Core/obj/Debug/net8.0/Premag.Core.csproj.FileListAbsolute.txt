@@ -9,3 +9,4 @@ C:\Projeto\PREMAG\api.premag\Premag.Core\obj\Debug\net8.0\Premag.Core.dll
 C:\Projeto\PREMAG\api.premag\Premag.Core\obj\Debug\net8.0\refint\Premag.Core.dll
 C:\Projeto\PREMAG\api.premag\Premag.Core\obj\Debug\net8.0\Premag.Core.pdb
 C:\Projeto\PREMAG\api.premag\Premag.Core\obj\Debug\net8.0\ref\Premag.Core.dll
+C:\Projeto\PREMAG\api.premag\Premag.Core\obj\Debug\net8.0\Premag.Core.sourcelink.json

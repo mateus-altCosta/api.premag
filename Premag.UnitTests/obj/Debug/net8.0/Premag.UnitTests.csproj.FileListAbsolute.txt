@@ -101,3 +101,4 @@ C:\Projeto\PREMAG\api.premag\Premag.UnitTests\obj\Debug\net8.0\refint\Premag.Uni
 C:\Projeto\PREMAG\api.premag\Premag.UnitTests\obj\Debug\net8.0\Premag.UnitTests.pdb
 C:\Projeto\PREMAG\api.premag\Premag.UnitTests\obj\Debug\net8.0\Premag.UnitTests.genruntimeconfig.cache
 C:\Projeto\PREMAG\api.premag\Premag.UnitTests\obj\Debug\net8.0\ref\Premag.UnitTests.dll
+C:\Projeto\PREMAG\api.premag\Premag.UnitTests\obj\Debug\net8.0\Premag.UnitTests.sourcelink.json

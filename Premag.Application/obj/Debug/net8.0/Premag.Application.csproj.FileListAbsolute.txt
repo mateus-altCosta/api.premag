@@ -34,3 +34,4 @@ C:\Projeto\PREMAG\api.premag\Premag.Application\bin\Debug\net8.0\LatoFont\Lato-S
 C:\Projeto\PREMAG\api.premag\Premag.Application\bin\Debug\net8.0\LatoFont\Lato-Thin.ttf
 C:\Projeto\PREMAG\api.premag\Premag.Application\bin\Debug\net8.0\LatoFont\Lato-ThinItalic.ttf
 C:\Projeto\PREMAG\api.premag\Premag.Application\bin\Debug\net8.0\LatoFont\OFL.txt
+C:\Projeto\PREMAG\api.premag\Premag.Application\obj\Debug\net8.0\Premag.Application.sourcelink.json
