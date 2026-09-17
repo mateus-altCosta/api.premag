@@ -80,4 +80,26 @@ public class AuthController : ControllerBase
 
         return Ok(me);
     }
+
+    [HttpPost("senha")]
+    [Authorize]
+    public async Task<IActionResult> Senha([FromBody] AlterarSenhaDto dto, CancellationToken cancellationToken)
+    {
+        var raw = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(raw, out var usuarioId))
+            return Unauthorized(new { message = "Usuário não autenticado" });
+        try
+        {
+            await _authService.AlterarSenhaAsync(usuarioId, dto, cancellationToken);
+            return NoContent();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return CadastroHttp.Falha(ex, _logger, "auth.senha");
+        }
+    }
 }

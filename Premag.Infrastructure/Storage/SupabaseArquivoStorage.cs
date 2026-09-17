@@ -50,6 +50,14 @@ public sealed class SupabaseArquivoStorage : IArquivoStorage
         return await res.Content.ReadAsByteArrayAsync(cancellationToken);
     }
 
+    public async Task RemoverAsync(string chave, CancellationToken cancellationToken = default)
+    {
+        using var res = await _http.DeleteAsync(Caminho(chave), cancellationToken);
+        if (res.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return;
+        res.EnsureSuccessStatusCode();
+    }
+
     private string Caminho(string chave)
     {
         var limpo = chave.Replace('\\', '/').TrimStart('/');

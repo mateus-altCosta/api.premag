@@ -1,0 +1,13 @@
+name: keep-alive
+
+on:
+  schedule:
+    - cron: "*/12 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Acordar a API no Render
+        run: curl -fsS --max-time 90 "https://api-premag.onrender.com/health"

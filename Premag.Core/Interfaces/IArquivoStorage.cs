@@ -4,4 +4,5 @@ public interface IArquivoStorage
 {
     Task GravarAsync(string chave, byte[] bytes, CancellationToken cancellationToken = default);
     Task<byte[]?> LerAsync(string chave, CancellationToken cancellationToken = default);
+    Task RemoverAsync(string chave, CancellationToken cancellationToken = default);
 }

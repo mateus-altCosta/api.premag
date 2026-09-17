@@ -18,11 +18,13 @@ public class FechamentoService : IFechamentoService
 {
     private readonly ApplicationDbContext _db;
     private readonly IRelogio _relogio;
+    private readonly IPushService _push;
 
-    public FechamentoService(ApplicationDbContext db, IRelogio relogio)
+    public FechamentoService(ApplicationDbContext db, IRelogio relogio, IPushService push)
     {
         _db = db;
         _relogio = relogio;
+        _push = push;
     }
 
     public async Task GarantirAbertoAsync(DateOnly data, Guid? equipeId, CancellationToken cancellationToken = default)
@@ -93,8 +95,18 @@ public class FechamentoService : IFechamentoService
             row.ReabertoPorId = null;
         }
 
+        _db.AuditLogs.Add(Auditoria.Novo(
+            _db.TenantId, "FechamentoDia", row.Id, "fechar-dia", quem, _relogio.UtcAgora,
+            depois: equipeId?.ToString()));
         await _db.SaveChangesAsync(cancellationToken);
-        return await MontarAsync(dia, equipeId, cancellationToken);
+
+        var montado = await MontarAsync(dia, equipeId, cancellationToken);
+        await _push.NotificarGestoresAsync(
+            "Dia fechado no PREMAG",
+            $"{quem.Perfil} fechou {montado.Escopo} em {dia:dd/MM}.",
+            "/fechamento",
+            cancellationToken);
+        return montado;
     }
 
     public async Task<FechamentoDiaDto> ReabrirAsync(
@@ -123,8 +135,98 @@ public class FechamentoService : IFechamentoService
         row.ReabertoEm = _relogio.UtcAgora;
         row.ReabertoPorId = quem.Id;
         row.MotivoReabertura = motivo;
+        _db.AuditLogs.Add(Auditoria.Novo(
+            _db.TenantId, "FechamentoDia", row.Id, "reabrir-dia", quem, _relogio.UtcAgora,
+            depois: motivo));
         await _db.SaveChangesAsync(cancellationToken);
         return await MontarAsync(dia, equipeId, cancellationToken);
+    }
+
+    public async Task FecharAutomaticoDoTurnoAsync(CancellationToken cancellationToken = default)
+    {
+        var config = await _db.Configuracoes.FirstOrDefaultAsync(cancellationToken) ?? new Configuracao();
+        if (_relogio.HoraSaoPaulo < config.JornadaFim)
+            return;
+
+        var dia = _relogio.HojeSaoPaulo;
+        if (CalculoFechamento.FechadoPorCalendario(dia, dia, config.DiasFechamento))
+            return;
+
+        var equipes = await _db.Equipes.Where(e => e.Ativa).ToListAsync(cancellationToken);
+        var adminId = await _db.Users.AsNoTracking()
+            .Where(u => u.Ativo && (u.Perfil == Permissoes.Admin || u.Perfil == Permissoes.Gerente))
+            .Select(u => u.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (adminId == Guid.Empty)
+            return;
+
+        foreach (var equipe in equipes)
+        {
+            var registros = await _db.FechamentosDia.AsNoTracking()
+                .Where(f => f.Data == dia)
+                .Select(f => new RegistroFechamento(f.Data, f.EquipeId, f.ReabertoEm))
+                .ToListAsync(cancellationToken);
+            if (CalculoFechamento.FechadoPorRegistro(dia, equipe.Id, registros))
+                continue;
+
+            var colabIds = await _db.Colaboradores.AsNoTracking()
+                .Where(c => c.EquipeId == equipe.Id)
+                .Select(c => c.Id)
+                .ToListAsync(cancellationToken);
+            var abertos = await _db.Apontamentos
+                .Where(a => a.Data == dia && a.HoraFim == null && colabIds.Contains(a.ColaboradorId))
+                .ToListAsync(cancellationToken);
+            foreach (var a in abertos)
+            {
+                var fim = config.JornadaFim;
+                if (fim <= a.HoraInicio)
+                    continue;
+                if (CalculoApontamento.InteiramenteNoIntervalo(a.HoraInicio, fim, config.IntervaloInicio, config.IntervaloFim))
+                    continue;
+                a.HoraFim = fim;
+                a.MinutosEfetivos = CalculoApontamento.MinutosEfetivos(
+                    a.HoraInicio, fim, config.IntervaloInicio, config.IntervaloFim);
+                a.AlteradoEm = _relogio.UtcAgora;
+            }
+
+            var row = await _db.FechamentosDia
+                .FirstOrDefaultAsync(f => f.Data == dia && f.EquipeId == equipe.Id, cancellationToken);
+            var por = equipe.EncarregadoId ?? adminId;
+            if (row is null)
+            {
+                row = new FechamentoDia
+                {
+                    TenantId = _db.TenantId,
+                    Data = dia,
+                    EquipeId = equipe.Id,
+                    FechadoEm = _relogio.UtcAgora,
+                    FechadoPorId = por
+                };
+                _db.FechamentosDia.Add(row);
+            }
+            else if (row.ReabertoEm is not null)
+            {
+                row.FechadoEm = _relogio.UtcAgora;
+                row.FechadoPorId = por;
+                row.ReabertoEm = null;
+                row.ReabertoPorId = null;
+            }
+            else
+                continue;
+
+            _db.AuditLogs.Add(new AuditLog
+            {
+                TenantId = _db.TenantId,
+                Entidade = "FechamentoDia",
+                EntidadeId = row.Id,
+                Acao = "fechar-auto",
+                Depois = equipe.Nome,
+                UsuarioId = por,
+                Em = _relogio.UtcAgora
+            });
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
     }
 
     private Guid? ResolverEquipeConsulta(Guid? pedida, UsuarioLogado quem)

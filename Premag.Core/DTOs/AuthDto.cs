@@ -49,3 +49,13 @@ public class UsuarioAtualDto
     public Guid? ColaboradorId { get; set; }
     public IReadOnlyList<string> Permissoes { get; set; } = [];
 }
+
+public class AlterarSenhaDto
+{
+    [Required(ErrorMessage = "Senha atual é obrigatória")]
+    public string SenhaAtual { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Senha nova é obrigatória")]
+    [MinLength(8, ErrorMessage = "A senha nova precisa ter pelo menos 8 caracteres")]
+    public string SenhaNova { get; set; } = string.Empty;
+}

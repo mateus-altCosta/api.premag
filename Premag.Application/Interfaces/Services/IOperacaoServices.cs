@@ -9,6 +9,7 @@ public interface IFotoService
     Task<IReadOnlyList<FotoDto>> ListarAsync(DateOnly? data, Guid? frenteId, Guid? colaboradorId, UsuarioLogado quem, CancellationToken cancellationToken = default);
     Task<FotoDto> RegistrarAsync(Guid clienteUuid, Guid frenteId, Guid? colaboradorId, Guid? apontamentoId, TipoFoto tipo, decimal? quantidade, string? observacao, byte[] jpeg, UsuarioLogado quem, CancellationToken cancellationToken = default);
     Task<(byte[] Bytes, string ContentType)?> ObterArquivoAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<int> ExpurgarExpiradasAsync(CancellationToken cancellationToken = default);
 }
 
 public interface IDiarioService
@@ -42,6 +43,7 @@ public interface IFechamentoService
     Task<FechamentoDiaDto> ObterAsync(DateOnly? data, Guid? equipeId, UsuarioLogado quem, CancellationToken cancellationToken = default);
     Task<FechamentoDiaDto> FecharAsync(FecharDiaDto dto, UsuarioLogado quem, CancellationToken cancellationToken = default);
     Task<FechamentoDiaDto> ReabrirAsync(ReabrirDiaDto dto, UsuarioLogado quem, CancellationToken cancellationToken = default);
+    Task FecharAutomaticoDoTurnoAsync(CancellationToken cancellationToken = default);
 }
 
 public interface IPushService
@@ -51,4 +53,9 @@ public interface IPushService
     Task DesinscreverAsync(string endpoint, UsuarioLogado quem, CancellationToken cancellationToken = default);
     Task NotificarGestoresAsync(string titulo, string corpo, string url, CancellationToken cancellationToken = default);
     Task NotificarEquipeAsync(Guid equipeId, string titulo, string corpo, string url, CancellationToken cancellationToken = default);
+}
+
+public interface IHistoricoService
+{
+    Task<IReadOnlyList<AuditLogDto>> ListarAsync(UsuarioLogado quem, int take, CancellationToken cancellationToken = default);
 }

@@ -121,6 +121,7 @@ builder.Services.AddScoped<IRelatorioService, RelatorioService>();
 builder.Services.AddScoped<IImportacaoService, ImportacaoService>();
 builder.Services.AddScoped<IFechamentoService, FechamentoService>();
 builder.Services.AddScoped<IPushService, PushService>();
+builder.Services.AddScoped<IHistoricoService, HistoricoService>();
 builder.Services.AddHostedService<Premag.API.Jobs.AlertaHostedService>();
 
 var storageProvider = builder.Configuration["Storage:Provider"];

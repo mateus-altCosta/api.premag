@@ -32,4 +32,12 @@ public sealed class LocalArquivoStorage : IArquivoStorage
             return null;
         return await File.ReadAllBytesAsync(path, cancellationToken);
     }
+
+    public Task RemoverAsync(string chave, CancellationToken cancellationToken = default)
+    {
+        var path = Path.Combine(_raiz, chave.Replace('/', Path.DirectorySeparatorChar));
+        if (File.Exists(path))
+            File.Delete(path);
+        return Task.CompletedTask;
+    }
 }

@@ -8,4 +8,5 @@ public interface IAuthService
     Task<AuthTokenPairDto?> RefreshAsync(RefreshTokenRequestDto dto, CancellationToken cancellationToken = default);
     Task LogoutAsync(LogoutDto dto, CancellationToken cancellationToken = default);
     Task<UsuarioAtualDto?> GetMeAsync(Guid usuarioId, CancellationToken cancellationToken = default);
+    Task AlterarSenhaAsync(Guid usuarioId, AlterarSenhaDto dto, CancellationToken cancellationToken = default);
 }

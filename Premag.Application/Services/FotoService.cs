@@ -197,6 +197,32 @@ public class FotoService : IFotoService
         return bytes is null ? null : (bytes, "image/jpeg");
     }
 
+    public async Task<int> ExpurgarExpiradasAsync(CancellationToken cancellationToken = default)
+    {
+        var hoje = _relogio.HojeSaoPaulo;
+        var fotos = await _db.Fotos
+            .Where(f => f.ExpiraEm != null && f.ExpiraEm < hoje)
+            .ToListAsync(cancellationToken);
+        foreach (var f in fotos)
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(f.ObjectKey))
+                    await _storage.RemoverAsync(f.ObjectKey, cancellationToken);
+                if (!string.IsNullOrWhiteSpace(f.ThumbKey) && f.ThumbKey != f.ObjectKey)
+                    await _storage.RemoverAsync(f.ThumbKey, cancellationToken);
+            }
+            catch
+            {
+                /* segue para marcar excluído mesmo se o arquivo já não existir */
+            }
+            f.Excluido = true;
+        }
+        if (fotos.Count > 0)
+            await _db.SaveChangesAsync(cancellationToken);
+        return fotos.Count;
+    }
+
     public static FotoDto Mapear(Foto f) => new()
     {
         Id = f.Id,

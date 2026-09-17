@@ -113,6 +113,9 @@ public class EquipeService : IEquipeService
             AlteradoEm = agora
         };
         _db.Colaboradores.Add(colaborador);
+        _db.AuditLogs.Add(Auditoria.Novo(
+            _db.TenantId, "Colaborador", colaborador.Id, "criar-colab", quem, agora,
+            depois: $"{matricula} {nome}"));
         await _db.SaveChangesAsync(cancellationToken);
 
         var verCusto = Permissoes.Tem(quem.Perfil, Permissoes.Gerente);

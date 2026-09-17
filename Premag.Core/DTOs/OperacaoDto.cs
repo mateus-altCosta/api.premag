@@ -110,6 +110,19 @@ public class ImportacaoResultadoDto
     public IReadOnlyList<string> Avisos { get; set; } = [];
 }
 
+public class AuditLogDto
+{
+    public Guid Id { get; set; }
+    public string Entidade { get; set; } = string.Empty;
+    public Guid EntidadeId { get; set; }
+    public string Acao { get; set; } = string.Empty;
+    public string? Antes { get; set; }
+    public string? Depois { get; set; }
+    public Guid UsuarioId { get; set; }
+    public string UsuarioNome { get; set; } = string.Empty;
+    public DateTimeOffset Em { get; set; }
+}
+
 public class FechamentoDiaDto
 {
     public DateOnly Data { get; set; }

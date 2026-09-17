@@ -63,4 +63,32 @@ public class AuthService : IAuthService
             Permissoes = Permissoes.Efetivas(usuario.Perfil)
         };
     }
+
+    public async Task AlterarSenhaAsync(Guid usuarioId, AlterarSenhaDto dto, CancellationToken cancellationToken = default)
+    {
+        var usuario = await _context.Users
+            .FirstOrDefaultAsync(u => u.Id == usuarioId && u.Ativo, cancellationToken)
+            ?? throw new UnauthorizedAccessException("Usuário não autenticado");
+
+        if (!BCrypt.Net.BCrypt.Verify(dto.SenhaAtual, usuario.SenhaHash))
+            throw new Premag.Core.Exceptions.RegraNegocioException("SENHA_ATUAL", "A senha atual não confere.", 422);
+
+        var nova = (dto.SenhaNova ?? "").Trim();
+        if (nova.Length < 8)
+            throw new Premag.Core.Exceptions.RegraNegocioException("SENHA_FRACA", "A senha nova precisa ter pelo menos 8 caracteres.", 422);
+        if (BCrypt.Net.BCrypt.Verify(nova, usuario.SenhaHash))
+            throw new Premag.Core.Exceptions.RegraNegocioException("SENHA_IGUAL", "A senha nova deve ser diferente da atual.", 422);
+
+        usuario.SenhaHash = BCrypt.Net.BCrypt.HashPassword(nova);
+        _context.AuditLogs.Add(new Premag.Core.Entities.AuditLog
+        {
+            TenantId = usuario.TenantId,
+            Entidade = "Usuario",
+            EntidadeId = usuario.Id,
+            Acao = "alterar-senha",
+            UsuarioId = usuario.Id,
+            Em = DateTimeOffset.UtcNow
+        });
+        await _context.SaveChangesAsync(cancellationToken);
+    }
 }

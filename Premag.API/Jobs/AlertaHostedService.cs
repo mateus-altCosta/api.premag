@@ -45,6 +45,10 @@ public sealed class AlertaHostedService : BackgroundService
                 tenant.Definir(id);
                 var svc = scope.ServiceProvider.GetRequiredService<IOcorrenciaService>();
                 await svc.DetectarAgoraAsync(stoppingToken);
+                var fotos = scope.ServiceProvider.GetRequiredService<IFotoService>();
+                await fotos.ExpurgarExpiradasAsync(stoppingToken);
+                var fecha = scope.ServiceProvider.GetRequiredService<IFechamentoService>();
+                await fecha.FecharAutomaticoDoTurnoAsync(stoppingToken);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
