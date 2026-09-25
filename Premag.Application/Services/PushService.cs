@@ -18,17 +18,20 @@ public class PushService : IPushService
     private readonly ApplicationDbContext _db;
     private readonly IRelogio _relogio;
     private readonly ILogger<PushService> _logger;
+    private readonly IEmailSender _email;
     private readonly VapidDetails? _vapid;
 
     public PushService(
         ApplicationDbContext db,
         IRelogio relogio,
         IConfiguration configuration,
-        ILogger<PushService> logger)
+        ILogger<PushService> logger,
+        IEmailSender email)
     {
         _db = db;
         _relogio = relogio;
         _logger = logger;
+        _email = email;
         var pub = configuration["Push:VapidPublicKey"];
         var priv = configuration["Push:VapidPrivateKey"];
         var subj = configuration["Push:Subject"] ?? "mailto:premag@localhost";
@@ -103,46 +106,69 @@ public class PushService : IPushService
         string url,
         CancellationToken cancellationToken)
     {
-        if (_vapid is null)
-            return;
-
         var usuarios = await _db.Users.AsNoTracking()
             .Where(u => u.Ativo)
             .ToListAsync(cancellationToken);
-        var ids = usuarios.Where(filtro).Select(u => u.Id).ToHashSet();
-        if (ids.Count == 0)
+        var alvo = usuarios.Where(filtro).ToList();
+        if (alvo.Count == 0)
             return;
 
-        var inscricoes = await _db.InscricoesPush
-            .Where(i => ids.Contains(i.UsuarioId))
-            .ToListAsync(cancellationToken);
-        if (inscricoes.Count == 0)
+        var ids = alvo.Select(u => u.Id).ToHashSet();
+        var okPush = new HashSet<Guid>();
+
+        if (_vapid is not null)
+        {
+            var inscricoes = await _db.InscricoesPush
+                .Where(i => ids.Contains(i.UsuarioId))
+                .ToListAsync(cancellationToken);
+            var payload = System.Text.Json.JsonSerializer.Serialize(new { title = titulo, body = corpo, url });
+            var client = new WebPushClient();
+            var mortas = new List<InscricaoPush>();
+
+            foreach (var i in inscricoes)
+            {
+                try
+                {
+                    var sub = new PushSubscription(i.Endpoint, i.P256dh, i.Auth);
+                    await client.SendNotificationAsync(sub, payload, _vapid);
+                    i.UltimoEnvioEm = _relogio.UtcAgora;
+                    okPush.Add(i.UsuarioId);
+                }
+                catch (WebPushException ex) when ((int)ex.StatusCode is 404 or 410)
+                {
+                    mortas.Add(i);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Falha ao enviar push para {Endpoint}", i.Endpoint);
+                }
+            }
+
+            if (mortas.Count > 0)
+                _db.InscricoesPush.RemoveRange(mortas);
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        if (!_email.Configurado)
             return;
 
-        var payload = System.Text.Json.JsonSerializer.Serialize(new { title = titulo, body = corpo, url });
-        var client = new WebPushClient();
-        var mortas = new List<InscricaoPush>();
-
-        foreach (var i in inscricoes)
+        foreach (var u in alvo.Where(u =>
+                     (u.Perfil == Permissoes.Diretoria || u.Perfil == Permissoes.Admin)
+                     && !okPush.Contains(u.Id)
+                     && !string.IsNullOrWhiteSpace(u.Email)))
         {
             try
             {
-                var sub = new PushSubscription(i.Endpoint, i.P256dh, i.Auth);
-                await client.SendNotificationAsync(sub, payload, _vapid);
-                i.UltimoEnvioEm = _relogio.UtcAgora;
-            }
-            catch (WebPushException ex) when ((int)ex.StatusCode is 404 or 410)
-            {
-                mortas.Add(i);
+                await _email.EnviarAsync(
+                    u.Email!,
+                    titulo,
+                    $"{corpo}\n\nAbra o PREMAG: {url}",
+                    cancellationToken);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Falha ao enviar push para {Endpoint}", i.Endpoint);
+                _logger.LogWarning(ex, "Falha ao enviar e-mail para {Email}", u.Email);
             }
         }
-
-        if (mortas.Count > 0)
-            _db.InscricoesPush.RemoveRange(mortas);
-        await _db.SaveChangesAsync(cancellationToken);
     }
 }

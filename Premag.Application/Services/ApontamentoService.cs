@@ -162,6 +162,7 @@ public class ApontamentoService : IApontamentoService
                     ? 0
                     : Math.Round(f.QuantidadeConcluida / f.QuantidadePrevista * 100, 1),
                 TaxaAcoKgPorUnidade = f.TaxaAcoKgPorUnidade,
+                TaxaAcoUnidade = UnidadeAco.Normalizar(f.TaxaAcoUnidade),
                 HhOrcadoPorUnidade = f.HhOrcadoPorUnidade,
                 Cor = f.Cor,
                 Ativa = f.Ativa
@@ -302,8 +303,10 @@ public class ApontamentoService : IApontamentoService
             if (jaHoje > 0)
                 avisos.Add("QUANTIDADE_JA_LANCADA_HOJE"); // RN-05
 
+            var jaDesteApontamento = await _db.Producoes
+                .AnyAsync(p => p.ApontamentoId == apontamento.Id, cancellationToken);
             var prodExistente = await _db.Producoes.FirstOrDefaultAsync(p => p.ClienteUuid == prod.ClienteUuid, cancellationToken);
-            if (prodExistente is null)
+            if (!jaDesteApontamento && prodExistente is null)
             {
                 // RN-06b: teto de 110% da previsão sem Gerente.
                 ProducaoService.GarantirTetoPrevisao(
@@ -333,6 +336,111 @@ public class ApontamentoService : IApontamentoService
             Avisos = avisos,
             QuantidadeJaLancadaHoje = jaHoje
         };
+    }
+
+    public async Task<ApontamentoDto> AjustarAsync(
+        Guid id,
+        AjustarApontamentoDto dto,
+        UsuarioLogado quem,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Permissoes.Tem(quem.Perfil, Permissoes.Gerente))
+            throw new RegraNegocioException("SEM_PERMISSAO", "Só a gerência corrige horário e frente.", 403);
+
+        var apontamento = await _db.Apontamentos
+            .Include(a => a.Frente).ThenInclude(f => f.Obra)
+            .Include(a => a.Frente).ThenInclude(f => f.Etapa)
+            .Include(a => a.MotivoParada)
+            .Include(a => a.Colaborador)
+            .FirstOrDefaultAsync(a => a.Id == id, cancellationToken)
+            ?? throw new RegraNegocioException("APONTAMENTO_NAO_ENCONTRADO", "Apontamento não encontrado.", 404);
+
+        await _fechamento.GarantirAbertoAsync(apontamento.Data, apontamento.Colaborador.EquipeId, cancellationToken);
+
+        var config = await ObterConfigAsync(cancellationToken);
+        var inicio = dto.HoraInicio < config.JornadaInicio ? config.JornadaInicio : dto.HoraInicio;
+        if (inicio > config.JornadaFim)
+            inicio = config.JornadaFim;
+
+        TimeOnly? fim = dto.HoraFim;
+        if (fim is TimeOnly hf)
+        {
+            if (hf > config.JornadaFim)
+                hf = config.JornadaFim;
+            if (hf <= inicio)
+                throw new RegraNegocioException("HORARIO_INVALIDO", "O término deve ser depois do início.", 422);
+            fim = hf;
+        }
+
+        var frente = await _db.Frentes
+            .Include(f => f.Obra)
+            .Include(f => f.Etapa)
+            .FirstOrDefaultAsync(f => f.Id == dto.FrenteId && f.Ativa, cancellationToken)
+            ?? throw new RegraNegocioException("FRENTE_NAO_ENCONTRADA", "Frente não encontrada.", 404);
+
+        var outros = await _db.Apontamentos
+            .Where(a => a.ColaboradorId == apontamento.ColaboradorId && a.Data == apontamento.Data && a.Id != id)
+            .ToListAsync(cancellationToken);
+        foreach (var outro in outros)
+        {
+            var outroFim = outro.HoraFim ?? config.JornadaFim;
+            var esteFim = fim ?? config.JornadaFim;
+            if (inicio < outroFim && outro.HoraInicio < esteFim)
+                throw new RegraNegocioException("HORARIO_SOBREPOSTO", "O horário cruza outro serviço do mesmo dia.", 422);
+        }
+
+        apontamento.HoraInicio = inicio;
+        apontamento.FrenteId = frente.Id;
+        apontamento.Frente = frente;
+        apontamento.Origem = OrigemApontamento.AjusteWeb;
+        apontamento.AlteradoPorId = quem.Id;
+        apontamento.AlteradoEm = _relogio.UtcAgora;
+
+        if (fim is TimeOnly horaFim)
+            await FecharAsync(apontamento, horaFim, config, quem, _relogio.UtcAgora, cancellationToken);
+        else
+        {
+            apontamento.HoraFim = null;
+            apontamento.MinutosEfetivos = null;
+        }
+
+        _db.AuditLogs.Add(Auditoria.Novo(
+            _db.TenantId, "Apontamento", apontamento.Id, "ajustar-apt", quem, _relogio.UtcAgora,
+            depois: $"{inicio:HH\\:mm}-{(fim is TimeOnly t ? t.ToString("HH\\:mm") : "aberto")} {frente.Nome}"));
+        await _db.SaveChangesAsync(cancellationToken);
+        return Mapear(apontamento);
+    }
+
+    public async Task AnularAsync(
+        Guid id,
+        AnularApontamentoDto dto,
+        UsuarioLogado quem,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Permissoes.Tem(quem.Perfil, Permissoes.Gerente))
+            throw new RegraNegocioException("SEM_PERMISSAO", "Só a gerência anula apontamento.", 403);
+
+        var motivo = (dto.Justificativa ?? "").Trim();
+        if (motivo.Length < 3)
+            throw new RegraNegocioException("JUSTIFICATIVA", "Informe o motivo da anulação.", 422);
+
+        var apontamento = await _db.Apontamentos
+            .Include(a => a.Colaborador)
+            .FirstOrDefaultAsync(a => a.Id == id, cancellationToken)
+            ?? throw new RegraNegocioException("APONTAMENTO_NAO_ENCONTRADO", "Apontamento não encontrado.", 404);
+
+        await _fechamento.GarantirAbertoAsync(apontamento.Data, apontamento.Colaborador.EquipeId, cancellationToken);
+
+        apontamento.Excluido = true;
+        apontamento.Observacao = string.IsNullOrWhiteSpace(apontamento.Observacao)
+            ? motivo
+            : $"{apontamento.Observacao} | anulado: {motivo}";
+        apontamento.AlteradoPorId = quem.Id;
+        apontamento.AlteradoEm = _relogio.UtcAgora;
+        _db.AuditLogs.Add(Auditoria.Novo(
+            _db.TenantId, "Apontamento", apontamento.Id, "anular-apt", quem, _relogio.UtcAgora,
+            depois: motivo));
+        await _db.SaveChangesAsync(cancellationToken);
     }
 
     private async Task FecharAsync(

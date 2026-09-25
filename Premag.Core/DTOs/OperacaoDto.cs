@@ -14,6 +14,8 @@ public class FotoDto
     public decimal? Quantidade { get; set; }
     public string? Observacao { get; set; }
     public DateTimeOffset CapturadaEm { get; set; }
+    public decimal? Latitude { get; set; }
+    public decimal? Longitude { get; set; }
     public string Url { get; set; } = string.Empty;
     public string UrlThumb { get; set; } = string.Empty;
 }
@@ -76,6 +78,8 @@ public class OcorrenciaDto
 public class ReconhecerOcorrenciaDto
 {
     public string? Justificativa { get; set; }
+    public bool GerarParada { get; set; }
+    public Guid? MotivoParadaId { get; set; }
 }
 
 public class RelatorioLinhaDto
@@ -91,7 +95,9 @@ public class RelatorioLinhaDto
     public decimal QuantidadeConcluida { get; set; }
     public decimal PercentualAvanco { get; set; }
     public decimal? AcoEstimadoKg { get; set; }
+    public string TaxaAcoUnidade { get; set; } = "kg";
     public decimal? CustoPorUnidade { get; set; }
+    public bool AmostraInsuficiente { get; set; }
 }
 
 public class RelatorioDto

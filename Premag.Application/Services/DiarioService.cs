@@ -141,7 +141,7 @@ public class DiarioService : IDiarioService
         var imagens = new List<(FotoDto Foto, byte[] Bytes)>();
         foreach (var f in diario.Fotos.Take(12))
         {
-            var arq = await _fotos.ObterArquivoAsync(f.Id, cancellationToken);
+            var arq = await _fotos.ObterArquivoAsync(f.Id, false, cancellationToken);
             if (arq is not null)
                 imagens.Add((f, arq.Value.Bytes));
         }

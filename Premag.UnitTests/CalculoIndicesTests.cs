@@ -104,6 +104,18 @@ public class CalculoIndicesTests
         mapa[F1].DesvioPercentual.Should().Be(10m);
     }
 
+    [Fact]
+    public void AmostraInsuficiente_BloqueiaExportacaoQuandoHaQuantidade()
+    {
+        var comQtd = new IndiceFrente { AmostraInsuficiente = true, Quantidade = 2 };
+        var semQtd = new IndiceFrente { AmostraInsuficiente = true, Quantidade = 0 };
+        var ok = new IndiceFrente { AmostraInsuficiente = false, Quantidade = 10 };
+
+        CalculoIndices.BloqueiaExportacaoIndice([comQtd]).Should().BeTrue();
+        CalculoIndices.BloqueiaExportacaoIndice([semQtd]).Should().BeFalse();
+        CalculoIndices.BloqueiaExportacaoIndice([ok]).Should().BeFalse();
+    }
+
     private static FrenteIndice Frente(
         Guid id,
         decimal prevista,

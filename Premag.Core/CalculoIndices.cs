@@ -127,4 +127,8 @@ public static class CalculoIndices
 
         return mapa;
     }
+
+    /// <summary>Memorial §19: não exporta índice (HH/un, R$/un) com menos de 5 lançamentos.</summary>
+    public static bool BloqueiaExportacaoIndice(IEnumerable<IndiceFrente> indices) =>
+        indices.Any(i => i.AmostraInsuficiente && i.Quantidade > 0);
 }

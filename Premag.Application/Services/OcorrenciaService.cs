@@ -16,12 +16,14 @@ public class OcorrenciaService : IOcorrenciaService
     private readonly ApplicationDbContext _db;
     private readonly IRelogio _relogio;
     private readonly IPushService _push;
+    private readonly IFechamentoService _fechamento;
 
-    public OcorrenciaService(ApplicationDbContext db, IRelogio relogio, IPushService push)
+    public OcorrenciaService(ApplicationDbContext db, IRelogio relogio, IPushService push, IFechamentoService fechamento)
     {
         _db = db;
         _relogio = relogio;
         _push = push;
+        _fechamento = fechamento;
     }
 
     public async Task<IReadOnlyList<OcorrenciaDto>> ListarAsync(
@@ -83,6 +85,65 @@ public class OcorrenciaService : IOcorrenciaService
         o.ReconhecidaEm = _relogio.UtcAgora;
         o.ReconhecidaPorId = quem.Id;
         o.Justificativa = string.IsNullOrWhiteSpace(dto.Justificativa) ? null : dto.Justificativa.Trim();
+
+        if (dto.GerarParada)
+        {
+            if (o.ColaboradorId is not Guid colabId)
+                throw new RegraNegocioException("PARADA_SEM_COLABORADOR", "Este alerta não tem colaborador para lançar parada.", 422);
+            if (dto.MotivoParadaId is null)
+                throw new RegraNegocioException("MOTIVO_OBRIGATORIO", "Informe o motivo da parada.", 422);
+
+            var colaborador = await _db.Colaboradores.FirstOrDefaultAsync(c => c.Id == colabId, cancellationToken)
+                ?? throw new RegraNegocioException("COLABORADOR_NAO_ENCONTRADO", "Colaborador não encontrado.", 404);
+            await _fechamento.GarantirAbertoAsync(o.Data, colaborador.EquipeId, cancellationToken);
+
+            var aberto = await _db.Apontamentos
+                .AnyAsync(a => a.ColaboradorId == colabId && a.HoraFim == null, cancellationToken);
+            if (aberto)
+                throw new RegraNegocioException("DIA_COM_SERVICO_ABERTO", "Encerre o serviço aberto antes de lançar a parada.", 422);
+
+            var motivo = await _db.MotivosParada.FirstOrDefaultAsync(m => m.Id == dto.MotivoParadaId, cancellationToken)
+                ?? throw new RegraNegocioException("MOTIVO_NAO_ENCONTRADO", "Motivo de parada não encontrado.", 404);
+            var frenteParada = await _db.Frentes
+                .Include(f => f.Obra)
+                .Include(f => f.Etapa)
+                .FirstOrDefaultAsync(f => f.Obra.Interna && f.Etapa.Indireta, cancellationToken)
+                ?? throw new RegraNegocioException("FRENTE_PARADA_AUSENTE", "Frente interna de parada não encontrada.", 500);
+
+            var config = await _db.Configuracoes.AsNoTracking().FirstOrDefaultAsync(cancellationToken) ?? new Configuracao();
+            var inicio = o.JanelaInicio ?? config.JornadaInicio;
+            var fim = _relogio.HoraSaoPaulo;
+            if (fim > config.JornadaFim) fim = config.JornadaFim;
+            if (fim <= inicio)
+                fim = inicio.AddMinutes(Math.Max(1, o.MinutosDecorridos ?? 15));
+            if (fim > config.JornadaFim) fim = config.JornadaFim;
+            if (fim <= inicio)
+                throw new RegraNegocioException("HORARIO_INVALIDO", "Não foi possível calcular o intervalo da parada.", 422);
+
+            var minutos = CalculoApontamento.MinutosEfetivos(inicio, fim, config.IntervaloInicio, config.IntervaloFim);
+            var parada = new Apontamento
+            {
+                TenantId = _db.TenantId,
+                ClienteUuid = GeradorId.Novo(),
+                ColaboradorId = colaborador.Id,
+                FrenteId = frenteParada.Id,
+                Data = o.Data,
+                HoraInicio = inicio,
+                HoraFim = fim,
+                MinutosEfetivos = minutos,
+                MotivoParadaId = motivo.Id,
+                Observacao = o.Justificativa,
+                Origem = OrigemApontamento.AjusteWeb,
+                CriadoPorId = quem.Id,
+                CriadoEm = _relogio.UtcAgora
+            };
+            _db.Apontamentos.Add(parada);
+            o.ApontamentoGerado = parada;
+            _db.AuditLogs.Add(Auditoria.Novo(
+                _db.TenantId, "Ocorrencia", o.Id, "gerar-parada", quem, _relogio.UtcAgora,
+                depois: motivo.Nome));
+        }
+
         await _db.SaveChangesAsync(cancellationToken);
     }
 

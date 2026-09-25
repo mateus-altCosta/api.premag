@@ -164,6 +164,34 @@ public class EquipeService : IEquipeService
         return Mapear(colaborador, destino.Nome, incluirCusto: true);
     }
 
+    public async Task<ColaboradorDto> AtualizarColaboradorAsync(
+        Guid colaboradorId,
+        AtualizarColaboradorDto dto,
+        UsuarioLogado quem,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Permissoes.Tem(quem.Perfil, Permissoes.Gerente))
+            throw new RegraNegocioException("SEM_PERMISSAO", "Só Gerente ou acima altera colaborador.", 403);
+
+        var colaborador = await _db.Colaboradores
+            .Include(c => c.Equipe)
+            .FirstOrDefaultAsync(c => c.Id == colaboradorId, cancellationToken)
+            ?? throw new RegraNegocioException("COLABORADOR_NAO_ENCONTRADO", "Colaborador não encontrado.", 404);
+
+        var nome = (dto.Nome ?? "").Trim();
+        if (nome.Length == 0)
+            throw new RegraNegocioException("DADOS_INVALIDOS", "Nome é obrigatório.");
+
+        colaborador.Nome = nome;
+        colaborador.Funcao = string.IsNullOrWhiteSpace(dto.Funcao) ? colaborador.Funcao : dto.Funcao.Trim();
+        colaborador.AlteradoEm = _relogio.UtcAgora;
+        _db.AuditLogs.Add(Auditoria.Novo(
+            _db.TenantId, "Colaborador", colaborador.Id, "editar-colab", quem, colaborador.AlteradoEm,
+            depois: $"{colaborador.Matricula} {colaborador.Nome}"));
+        await _db.SaveChangesAsync(cancellationToken);
+        return Mapear(colaborador, colaborador.Equipe.Nome, incluirCusto: true);
+    }
+
     public async Task ExcluirColaboradorAsync(
         Guid colaboradorId,
         UsuarioLogado quem,

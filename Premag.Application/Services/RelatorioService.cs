@@ -92,7 +92,9 @@ public class RelatorioService : IRelatorioService
                     ? 0
                     : decimal.Round(f.QuantidadeConcluida / f.QuantidadePrevista * 100, 1),
                 AcoEstimadoKg = ix?.AcoEstimadoKg,
-                CustoPorUnidade = verCusto ? ix?.CustoPorUnidade : null
+                TaxaAcoUnidade = UnidadeAco.Normalizar(f.TaxaAcoUnidade),
+                CustoPorUnidade = verCusto ? ix?.CustoPorUnidade : null,
+                AmostraInsuficiente = ix?.AmostraInsuficiente ?? true
             };
         }).ToList();
 
@@ -117,11 +119,24 @@ public class RelatorioService : IRelatorioService
         CancellationToken cancellationToken = default)
     {
         var rel = await ObterAsync(tipo, periodo, obraId, quem, cancellationToken);
+        if (rel.Tipo == "produtividade"
+            && CalculoIndices.BloqueiaExportacaoIndice(rel.Linhas.Select(l => new IndiceFrente
+            {
+                AmostraInsuficiente = l.AmostraInsuficiente,
+                Quantidade = l.Quantidade
+            })))
+        {
+            throw new RegraNegocioException(
+                "AMOSTRA_INSUFICIENTE",
+                "Não exporta índice de custo com menos de 5 lançamentos na frente. Espere mais amostra ou use o avanço.",
+                422);
+        }
+
         var sb = new StringBuilder();
         sb.Append('\uFEFF');
         if (rel.Tipo == "avanco")
         {
-            sb.AppendLine("Frente;Previsto;Feito;Percentual;AcoEstimadoKg");
+            sb.AppendLine("Frente;Previsto;Feito;Percentual;AcoEstimado;UnidadeAco");
             foreach (var l in rel.Linhas)
             {
                 sb.AppendLine(string.Join(';',
@@ -129,7 +144,8 @@ public class RelatorioService : IRelatorioService
                     l.QuantidadePrevista.ToString("0.###", CultureInfo.InvariantCulture),
                     l.QuantidadeConcluida.ToString("0.###", CultureInfo.InvariantCulture),
                     l.PercentualAvanco.ToString("0.#", CultureInfo.InvariantCulture),
-                    l.AcoEstimadoKg?.ToString("0.#", CultureInfo.InvariantCulture) ?? ""));
+                    l.AcoEstimadoKg?.ToString("0.#", CultureInfo.InvariantCulture) ?? "",
+                    Csv(l.TaxaAcoUnidade)));
             }
         }
         else

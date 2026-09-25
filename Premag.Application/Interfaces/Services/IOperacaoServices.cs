@@ -7,8 +7,9 @@ namespace Premag.Application.Interfaces.Services;
 public interface IFotoService
 {
     Task<IReadOnlyList<FotoDto>> ListarAsync(DateOnly? data, Guid? frenteId, Guid? colaboradorId, UsuarioLogado quem, CancellationToken cancellationToken = default);
-    Task<FotoDto> RegistrarAsync(Guid clienteUuid, Guid frenteId, Guid? colaboradorId, Guid? apontamentoId, TipoFoto tipo, decimal? quantidade, string? observacao, byte[] jpeg, UsuarioLogado quem, CancellationToken cancellationToken = default);
-    Task<(byte[] Bytes, string ContentType)?> ObterArquivoAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<FotoDto> RegistrarAsync(Guid clienteUuid, Guid frenteId, Guid? colaboradorId, Guid? apontamentoId, TipoFoto tipo, decimal? quantidade, string? observacao, byte[] jpeg, UsuarioLogado quem, CancellationToken cancellationToken = default, decimal? latitude = null, decimal? longitude = null);
+    Task<(byte[] Bytes, string ContentType)?> ObterArquivoAsync(Guid id, bool thumb = false, CancellationToken cancellationToken = default);
+    Task ExcluirAsync(Guid id, UsuarioLogado quem, CancellationToken cancellationToken = default);
     Task<int> ExpurgarExpiradasAsync(CancellationToken cancellationToken = default);
 }
 

@@ -50,6 +50,8 @@ public class FotosController : ControllerBase
         [FromForm] string tipo,
         [FromForm] decimal? quantidade,
         [FromForm] string? observacao,
+        [FromForm] decimal? latitude,
+        [FromForm] decimal? longitude,
         IFormFile? arquivo,
         CancellationToken cancellationToken)
     {
@@ -70,7 +72,7 @@ public class FotosController : ControllerBase
             await arquivo.CopyToAsync(ms, cancellationToken);
             var dto = await _fotos.RegistrarAsync(
                 clienteUuid, frenteId, colaboradorId, apontamentoId, tipoFoto, quantidade, observacao,
-                ms.ToArray(), quem, cancellationToken);
+                ms.ToArray(), quem, cancellationToken, latitude, longitude);
             return StatusCode(201, dto);
         }
         catch (Exception ex)
@@ -81,20 +83,38 @@ public class FotosController : ControllerBase
 
     [HttpGet("{id:guid}/arquivo")]
     public Task<IActionResult> Arquivo(Guid id, CancellationToken cancellationToken) =>
-        Servir(id, cancellationToken);
+        Servir(id, false, cancellationToken);
 
     [HttpGet("{id:guid}/thumb")]
     public Task<IActionResult> Thumb(Guid id, CancellationToken cancellationToken) =>
-        Servir(id, cancellationToken);
+        Servir(id, true, cancellationToken);
 
-    private async Task<IActionResult> Servir(Guid id, CancellationToken cancellationToken)
+    [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "Gerente")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
         var quem = CadastroHttp.Quem(this);
         if (quem is null)
             return Unauthorized(new { message = "Usuário não autenticado" });
         try
         {
-            var arq = await _fotos.ObterArquivoAsync(id, cancellationToken);
+            await _fotos.ExcluirAsync(id, quem, cancellationToken);
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            return CadastroHttp.Falha(ex, _logger, "fotos.excluir");
+        }
+    }
+
+    private async Task<IActionResult> Servir(Guid id, bool thumb, CancellationToken cancellationToken)
+    {
+        var quem = CadastroHttp.Quem(this);
+        if (quem is null)
+            return Unauthorized(new { message = "Usuário não autenticado" });
+        try
+        {
+            var arq = await _fotos.ObterArquivoAsync(id, thumb, cancellationToken);
             if (arq is null)
                 return NotFound();
             return File(arq.Value.Bytes, arq.Value.ContentType);

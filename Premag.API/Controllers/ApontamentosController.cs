@@ -56,4 +56,45 @@ public class ApontamentosController : ControllerBase
             return CadastroHttp.Falha(ex, _logger, "apontamentos.encerrar");
         }
     }
+
+    [HttpPut("{id:guid}")]
+    [Authorize(Policy = "Gerente")]
+    public async Task<IActionResult> Ajustar(
+        Guid id,
+        [FromBody] AjustarApontamentoDto dto,
+        CancellationToken cancellationToken)
+    {
+        var quem = CadastroHttp.Quem(this);
+        if (quem is null)
+            return Unauthorized(new { message = "Usuário não autenticado" });
+        try
+        {
+            return Ok(await _apontamentoService.AjustarAsync(id, dto, quem, cancellationToken));
+        }
+        catch (Exception ex)
+        {
+            return CadastroHttp.Falha(ex, _logger, "apontamentos.ajustar");
+        }
+    }
+
+    [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "Gerente")]
+    public async Task<IActionResult> Anular(
+        Guid id,
+        [FromBody] AnularApontamentoDto dto,
+        CancellationToken cancellationToken)
+    {
+        var quem = CadastroHttp.Quem(this);
+        if (quem is null)
+            return Unauthorized(new { message = "Usuário não autenticado" });
+        try
+        {
+            await _apontamentoService.AnularAsync(id, dto, quem, cancellationToken);
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            return CadastroHttp.Falha(ex, _logger, "apontamentos.anular");
+        }
+    }
 }

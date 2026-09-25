@@ -38,6 +38,27 @@ public class ColaboradoresController : ControllerBase
         }
     }
 
+    [HttpPut("{id:guid}")]
+    [Authorize(Policy = "Gerente")]
+    public async Task<IActionResult> Put(
+        Guid id,
+        [FromBody] AtualizarColaboradorDto dto,
+        CancellationToken cancellationToken)
+    {
+        var quem = CadastroHttp.Quem(this);
+        if (quem is null)
+            return Unauthorized(new { message = "Usuário não autenticado" });
+
+        try
+        {
+            return Ok(await _equipeService.AtualizarColaboradorAsync(id, dto, quem, cancellationToken));
+        }
+        catch (Exception ex)
+        {
+            return CadastroHttp.Falha(ex, _logger, "colaboradores.atualizar");
+        }
+    }
+
     [HttpPut("{id:guid}/equipe")]
     [Authorize(Policy = "Gerente")]
     public async Task<IActionResult> Transferir(

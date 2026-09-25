@@ -29,6 +29,18 @@ public class LancarProducaoDto
     public Guid? FotoClienteUuid { get; set; }
 }
 
+public class AjustarApontamentoDto
+{
+    [Required] public TimeOnly HoraInicio { get; set; }
+    public TimeOnly? HoraFim { get; set; }
+    [Required] public Guid FrenteId { get; set; }
+}
+
+public class AnularApontamentoDto
+{
+    [Required] public string Justificativa { get; set; } = string.Empty;
+}
+
 public class EncerrarResultadoDto
 {
     public ApontamentoDto Apontamento { get; set; } = new();

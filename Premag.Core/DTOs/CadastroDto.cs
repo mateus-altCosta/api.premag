@@ -71,6 +71,12 @@ public class TransferirColaboradorDto
     [Required] public Guid EquipeId { get; set; }
 }
 
+public class AtualizarColaboradorDto
+{
+    [Required] public string Nome { get; set; } = string.Empty;
+    public string Funcao { get; set; } = "—";
+}
+
 public class ObraDto
 {
     public Guid Id { get; set; }
@@ -115,6 +121,7 @@ public class FrenteDto
     public decimal QuantidadeConcluida { get; set; }
     public decimal PercentualAvanco { get; set; }
     public decimal? TaxaAcoKgPorUnidade { get; set; }
+    public string TaxaAcoUnidade { get; set; } = "kg";
     public decimal? HhOrcadoPorUnidade { get; set; }
     public string Cor { get; set; } = string.Empty;
     public bool Ativa { get; set; }
@@ -140,6 +147,7 @@ public class CriarFrenteDto
     public string Unidade { get; set; } = "pç";
     public decimal QuantidadePrevista { get; set; }
     public decimal? TaxaAcoKgPorUnidade { get; set; }
+    public string TaxaAcoUnidade { get; set; } = "kg";
     public decimal? HhOrcadoPorUnidade { get; set; }
     public string? ItemOrcamentoSienge { get; set; }
     public string Cor { get; set; } = "#B07500";

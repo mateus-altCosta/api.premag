@@ -77,7 +77,9 @@ public class FotoService : IFotoService
         string? observacao,
         byte[] jpeg,
         UsuarioLogado quem,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        decimal? latitude = null,
+        decimal? longitude = null)
     {
         if (clienteUuid == Guid.Empty)
             throw new RegraNegocioException("RN-12", "Informe ClienteUuid.", 422);
@@ -122,12 +124,28 @@ public class FotoService : IFotoService
             colaborador?.EquipeId ?? frente.EquipeId,
             cancellationToken);
 
+        var lancarPelaFoto = false;
+        Guid? producaoParaVincular = null;
         if (tipo == TipoFoto.Avanco && quantidade is > 0 && !frente.Etapa.Indireta)
         {
-            ProducaoService.GarantirTetoPrevisao(
-                frente.QuantidadePrevista,
-                frente.QuantidadeConcluida + quantidade.Value,
-                quem);
+            var dia = _relogio.HojeSaoPaulo;
+            var doDia = (await _db.Producoes.AsNoTracking()
+                    .Where(p => p.FrenteId == frente.Id && p.Data == dia)
+                    .Select(p => new { p.Id, p.ApontamentoId, p.FotoId, p.Quantidade, p.RegistradoEm })
+                    .ToListAsync(cancellationToken))
+                .Select(p => new VinculoFotoProducao.LancamentoDia(
+                    p.Id, p.ApontamentoId, p.FotoId, p.Quantidade, p.RegistradoEm))
+                .ToList();
+            var decisao = VinculoFotoProducao.Decidir(doDia, apontamentoId, quantidade.Value);
+            lancarPelaFoto = decisao.LancarNova;
+            producaoParaVincular = decisao.ProducaoIdParaVincular;
+            if (lancarPelaFoto)
+            {
+                ProducaoService.GarantirTetoPrevisao(
+                    frente.QuantidadePrevista,
+                    frente.QuantidadeConcluida + quantidade.Value,
+                    quem);
+            }
         }
 
         var config = await _db.Configuracoes.AsNoTracking().FirstOrDefaultAsync(cancellationToken) ?? new Configuracao();
@@ -156,24 +174,35 @@ public class FotoService : IFotoService
             Altura = altura,
             HashSha256 = hash,
             CapturadaEm = _relogio.UtcAgora,
+            Latitude = latitude,
+            Longitude = longitude,
             EnviadaPorId = quem.Id,
             ExpiraEm = _relogio.HojeSaoPaulo.AddMonths(config.RetencaoFotosMeses)
         };
         _db.Fotos.Add(foto);
         await _db.SaveChangesAsync(cancellationToken);
 
-        // RN-11: foto de avanço com quantidade lança Produção (mesmo ClienteUuid).
-        if (tipo == TipoFoto.Avanco && quantidade is > 0 && !frente.Etapa.Indireta)
+        // RN-11: foto de avanço só lança se ainda não houver quantidade no dia.
+        if (lancarPelaFoto)
         {
             await _producao.RegistrarAsync(new RegistrarProducaoDto
             {
                 ClienteUuid = clienteUuid,
                 FrenteId = frente.Id,
-                Quantidade = quantidade.Value,
+                Quantidade = quantidade!.Value,
                 ApontamentoId = apontamentoId
             }, quem, cancellationToken);
 
             var prod = await _db.Producoes.FirstOrDefaultAsync(p => p.ClienteUuid == clienteUuid, cancellationToken);
+            if (prod is not null && prod.FotoId is null)
+            {
+                prod.FotoId = foto.Id;
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+        }
+        else if (producaoParaVincular is Guid pid)
+        {
+            var prod = await _db.Producoes.FirstOrDefaultAsync(p => p.Id == pid, cancellationToken);
             if (prod is not null && prod.FotoId is null)
             {
                 prod.FotoId = foto.Id;
@@ -188,13 +217,41 @@ public class FotoService : IFotoService
 
     public async Task<(byte[] Bytes, string ContentType)?> ObterArquivoAsync(
         Guid id,
+        bool thumb = false,
         CancellationToken cancellationToken = default)
     {
         var foto = await _db.Fotos.AsNoTracking().FirstOrDefaultAsync(f => f.Id == id, cancellationToken);
         if (foto is null)
             return null;
-        var bytes = await _storage.LerAsync(foto.ObjectKey, cancellationToken);
+        var chave = thumb && !string.IsNullOrWhiteSpace(foto.ThumbKey) ? foto.ThumbKey : foto.ObjectKey;
+        var bytes = await _storage.LerAsync(chave, cancellationToken);
         return bytes is null ? null : (bytes, "image/jpeg");
+    }
+
+    public async Task ExcluirAsync(Guid id, UsuarioLogado quem, CancellationToken cancellationToken = default)
+    {
+        if (!Permissoes.Tem(quem.Perfil, Permissoes.Gerente))
+            throw new RegraNegocioException("SEM_PERMISSAO", "Só a gerência retira foto do diário.", 403);
+
+        var foto = await _db.Fotos.FirstOrDefaultAsync(f => f.Id == id, cancellationToken)
+            ?? throw new RegraNegocioException("FOTO_NAO_ENCONTRADA", "Foto não encontrada.", 404);
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(foto.ObjectKey))
+                await _storage.RemoverAsync(foto.ObjectKey, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(foto.ThumbKey) && foto.ThumbKey != foto.ObjectKey)
+                await _storage.RemoverAsync(foto.ThumbKey, cancellationToken);
+        }
+        catch
+        {
+            /* exclusão lógica segue mesmo se o arquivo já não existir */
+        }
+
+        foto.Excluido = true;
+        _db.AuditLogs.Add(Auditoria.Novo(
+            _db.TenantId, "Foto", foto.Id, "excluir-foto", quem, _relogio.UtcAgora));
+        await _db.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<int> ExpurgarExpiradasAsync(CancellationToken cancellationToken = default)
@@ -235,6 +292,8 @@ public class FotoService : IFotoService
         Quantidade = f.Quantidade,
         Observacao = f.Observacao,
         CapturadaEm = f.CapturadaEm,
+        Latitude = f.Latitude,
+        Longitude = f.Longitude,
         Url = $"fotos/{f.Id}/arquivo",
         UrlThumb = $"fotos/{f.Id}/thumb"
     };

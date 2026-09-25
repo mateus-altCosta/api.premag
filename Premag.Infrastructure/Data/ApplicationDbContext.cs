@@ -162,6 +162,7 @@ public class ApplicationDbContext : DbContext
             b.Property(x => x.QuantidadePrevista).HasPrecision(14, 3);
             b.Property(x => x.QuantidadeConcluida).HasPrecision(14, 3);
             b.Property(x => x.TaxaAcoKgPorUnidade).HasPrecision(12, 3);
+            b.Property(x => x.TaxaAcoUnidade).HasMaxLength(8).IsRequired();
             b.Property(x => x.HhOrcadoPorUnidade).HasPrecision(12, 4);
             b.Property(x => x.ItemOrcamentoSienge).HasMaxLength(40);
             b.Property(x => x.Cor).HasMaxLength(7);

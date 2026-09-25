@@ -10,6 +10,7 @@ public class Frente : EntidadeTenant
     public decimal QuantidadePrevista { get; set; }
     public decimal QuantidadeConcluida { get; set; }
     public decimal? TaxaAcoKgPorUnidade { get; set; }
+    public string TaxaAcoUnidade { get; set; } = "kg";
     public decimal? HhOrcadoPorUnidade { get; set; }
     public string? ItemOrcamentoSienge { get; set; }
     public string Cor { get; set; } = "#4A5560";

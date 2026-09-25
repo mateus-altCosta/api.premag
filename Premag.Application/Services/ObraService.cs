@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Premag.Application.Interfaces.Services;
+using Premag.Core;
 using Premag.Core.DTOs;
 using Premag.Core.Entities;
 using Premag.Core.Enums;
@@ -139,6 +140,7 @@ public class ObraService : IObraService
             Unidade = unidade,
             QuantidadePrevista = dto.QuantidadePrevista < 0 ? 0 : dto.QuantidadePrevista,
             TaxaAcoKgPorUnidade = dto.TaxaAcoKgPorUnidade,
+            TaxaAcoUnidade = UnidadeAco.Normalizar(dto.TaxaAcoUnidade),
             HhOrcadoPorUnidade = dto.HhOrcadoPorUnidade,
             ItemOrcamentoSienge = string.IsNullOrWhiteSpace(dto.ItemOrcamentoSienge)
                 ? null
@@ -197,6 +199,7 @@ public class ObraService : IObraService
         frente.Unidade = unidade;
         frente.QuantidadePrevista = dto.QuantidadePrevista < 0 ? 0 : dto.QuantidadePrevista;
         frente.TaxaAcoKgPorUnidade = dto.TaxaAcoKgPorUnidade;
+        frente.TaxaAcoUnidade = UnidadeAco.Normalizar(dto.TaxaAcoUnidade);
         frente.HhOrcadoPorUnidade = dto.HhOrcadoPorUnidade;
         frente.ItemOrcamentoSienge = string.IsNullOrWhiteSpace(dto.ItemOrcamentoSienge)
             ? null
@@ -250,6 +253,7 @@ public class ObraService : IObraService
             QuantidadeConcluida = f.QuantidadeConcluida,
             PercentualAvanco = prevista <= 0 ? 0 : Math.Round(f.QuantidadeConcluida / prevista * 100, 1),
             TaxaAcoKgPorUnidade = f.TaxaAcoKgPorUnidade,
+            TaxaAcoUnidade = UnidadeAco.Normalizar(f.TaxaAcoUnidade),
             HhOrcadoPorUnidade = f.HhOrcadoPorUnidade,
             Cor = f.Cor,
             Ativa = f.Ativa

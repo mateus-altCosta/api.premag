@@ -650,6 +650,12 @@ namespace Premag.Infrastructure.Data.Migrations
                         .HasColumnType("numeric(12,3)")
                         .HasColumnName("taxa_aco_kg_por_unidade");
 
+                    b.Property<string>("TaxaAcoUnidade")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("taxa_aco_unidade");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid")
                         .HasColumnName("tenant_id");

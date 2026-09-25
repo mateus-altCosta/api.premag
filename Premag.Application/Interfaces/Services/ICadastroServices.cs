@@ -14,6 +14,7 @@ public interface IEquipeService
     Task<IReadOnlyList<ColaboradorDto>> ListarColaboradoresAsync(Guid equipeId, UsuarioLogado quem, CancellationToken cancellationToken = default);
     Task<ColaboradorDto> CriarColaboradorAsync(CriarColaboradorDto dto, UsuarioLogado quem, CancellationToken cancellationToken = default);
     Task<ColaboradorDto> TransferirAsync(Guid colaboradorId, TransferirColaboradorDto dto, UsuarioLogado quem, CancellationToken cancellationToken = default);
+    Task<ColaboradorDto> AtualizarColaboradorAsync(Guid colaboradorId, AtualizarColaboradorDto dto, UsuarioLogado quem, CancellationToken cancellationToken = default);
     Task ExcluirColaboradorAsync(Guid colaboradorId, UsuarioLogado quem, CancellationToken cancellationToken = default);
 }
 
