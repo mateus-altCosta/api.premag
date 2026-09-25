@@ -156,6 +156,7 @@ public class FotoService : IFotoService
 
         await _storage.GravarAsync(chave, jpeg, cancellationToken);
 
+        var (lat, lng) = CoordenadaGps.Normalizar(latitude, longitude);
         var foto = new Foto
         {
             Id = id,
@@ -165,7 +166,7 @@ public class FotoService : IFotoService
             ColaboradorId = colaborador?.Id,
             ApontamentoId = apontamentoId,
             Tipo = tipo,
-            Quantidade = quantidade is > 0 ? quantidade : null,
+            Quantidade = quantidade is > 0 ? decimal.Round(quantidade.Value, 3, MidpointRounding.AwayFromZero) : null,
             Observacao = string.IsNullOrWhiteSpace(observacao) ? null : observacao.Trim(),
             ObjectKey = chave,
             ThumbKey = chave,
@@ -174,8 +175,8 @@ public class FotoService : IFotoService
             Altura = altura,
             HashSha256 = hash,
             CapturadaEm = _relogio.UtcAgora,
-            Latitude = latitude,
-            Longitude = longitude,
+            Latitude = lat,
+            Longitude = lng,
             EnviadaPorId = quem.Id,
             ExpiraEm = _relogio.HojeSaoPaulo.AddMonths(config.RetencaoFotosMeses)
         };

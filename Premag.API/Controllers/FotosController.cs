@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Premag.Application.Interfaces.Services;
@@ -48,10 +49,10 @@ public class FotosController : ControllerBase
         [FromForm] Guid? colaboradorId,
         [FromForm] Guid? apontamentoId,
         [FromForm] string tipo,
-        [FromForm] decimal? quantidade,
+        [FromForm] string? quantidade,
         [FromForm] string? observacao,
-        [FromForm] decimal? latitude,
-        [FromForm] decimal? longitude,
+        [FromForm] string? latitude,
+        [FromForm] string? longitude,
         IFormFile? arquivo,
         CancellationToken cancellationToken)
     {
@@ -71,8 +72,10 @@ public class FotosController : ControllerBase
             await using var ms = new MemoryStream();
             await arquivo.CopyToAsync(ms, cancellationToken);
             var dto = await _fotos.RegistrarAsync(
-                clienteUuid, frenteId, colaboradorId, apontamentoId, tipoFoto, quantidade, observacao,
-                ms.ToArray(), quem, cancellationToken, latitude, longitude);
+                clienteUuid, frenteId, colaboradorId, apontamentoId, tipoFoto,
+                DecimalInvariant(quantidade), observacao,
+                ms.ToArray(), quem, cancellationToken,
+                DecimalInvariant(latitude), DecimalInvariant(longitude));
             return StatusCode(201, dto);
         }
         catch (Exception ex)
@@ -123,5 +126,18 @@ public class FotosController : ControllerBase
         {
             return CadastroHttp.Falha(ex, _logger, "fotos.arquivo");
         }
+    }
+
+    private static decimal? DecimalInvariant(string? valor)
+    {
+        if (string.IsNullOrWhiteSpace(valor))
+            return null;
+        return decimal.TryParse(
+            valor.Trim().Replace(',', '.'),
+            NumberStyles.Number,
+            CultureInfo.InvariantCulture,
+            out var n)
+            ? n
+            : null;
     }
 }

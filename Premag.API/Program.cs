@@ -126,9 +126,10 @@ builder.Services.AddSingleton<IEmailSender, Premag.Infrastructure.Email.SmtpEmai
 builder.Services.AddHostedService<Premag.API.Jobs.AlertaHostedService>();
 
 var storageProvider = builder.Configuration["Storage:Provider"];
-if (string.Equals(storageProvider, "Supabase", StringComparison.OrdinalIgnoreCase)
+var supabasePronto = string.Equals(storageProvider, "Supabase", StringComparison.OrdinalIgnoreCase)
     && !string.IsNullOrWhiteSpace(builder.Configuration["Storage:Supabase:Url"])
-    && !string.IsNullOrWhiteSpace(builder.Configuration["Storage:Supabase:Key"]))
+    && !string.IsNullOrWhiteSpace(builder.Configuration["Storage:Supabase:Key"]);
+if (supabasePronto)
     builder.Services.AddSingleton<IArquivoStorage, Premag.Infrastructure.Storage.SupabaseArquivoStorage>();
 else
     builder.Services.AddSingleton<IArquivoStorage, Premag.Infrastructure.Storage.LocalArquivoStorage>();
@@ -174,6 +175,12 @@ builder.Services.AddAuthorization(options =>
 });
 
 var app = builder.Build();
+
+app.Logger.LogInformation(
+    supabasePronto
+        ? "Storage: Supabase (bucket {Bucket})"
+        : "Storage: local em disco — preencha Storage:Supabase:Key para gravar no bucket",
+    app.Configuration["Storage:Supabase:Bucket"]);
 
 app.UseForwardedHeaders();
 
