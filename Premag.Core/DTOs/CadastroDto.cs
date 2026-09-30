@@ -7,7 +7,7 @@ public class CatalogoDto
 {
     public IReadOnlyList<EtapaDto> Etapas { get; set; } = [];
     public IReadOnlyList<MotivoParadaDto> MotivosParada { get; set; } = [];
-    public IReadOnlyList<string> Unidades { get; set; } = ["pç", "m³", "m", "kg", "h", "un"];
+    public IReadOnlyList<string> Unidades { get; set; } = ["pç", "m³", "m²", "m", "kg"];
     public ConfiguracaoDto Configuracao { get; set; } = new();
 }
 

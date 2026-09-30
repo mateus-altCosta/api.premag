@@ -12,7 +12,7 @@ namespace Premag.Application.Services;
 public class ObraService : IObraService
 {
     private static readonly HashSet<string> Unidades =
-        new(StringComparer.OrdinalIgnoreCase) { "pç", "m³", "m", "kg", "h", "un" };
+        new(StringComparer.OrdinalIgnoreCase) { "pç", "m³", "m²", "m", "kg", "h", "un" };
 
     private readonly ApplicationDbContext _db;
 
@@ -123,7 +123,7 @@ public class ObraService : IObraService
 
         var unidade = string.IsNullOrWhiteSpace(dto.Unidade) ? "pç" : dto.Unidade.Trim();
         if (!Unidades.Contains(unidade))
-            throw new RegraNegocioException("UNIDADE_INVALIDA", "Unidade deve ser pç, m³, m, kg, h ou un.");
+            throw new RegraNegocioException("UNIDADE_INVALIDA", "Unidade deve ser pç, m³, m², m ou kg.");
 
         var nome = dto.Nome.Trim();
         var duplicada = await _db.Frentes.AnyAsync(f => f.ObraId == obra.Id && f.Nome == nome, cancellationToken);
@@ -184,7 +184,7 @@ public class ObraService : IObraService
 
         var unidade = string.IsNullOrWhiteSpace(dto.Unidade) ? frente.Unidade : dto.Unidade.Trim();
         if (!Unidades.Contains(unidade))
-            throw new RegraNegocioException("UNIDADE_INVALIDA", "Unidade deve ser pç, m³, m, kg, h ou un.");
+            throw new RegraNegocioException("UNIDADE_INVALIDA", "Unidade deve ser pç, m³, m², m ou kg.");
 
         var nome = dto.Nome.Trim();
         var duplicada = await _db.Frentes.AnyAsync(
