@@ -45,6 +45,12 @@ public class EquipeDto
     public Guid? EncarregadoId { get; set; }
 }
 
+public class CriarEquipeDto
+{
+    [Required] public string Nome { get; set; } = string.Empty;
+    public string Cor { get; set; } = "#4A5560";
+}
+
 public class ColaboradorDto
 {
     public Guid Id { get; set; }
@@ -64,6 +70,7 @@ public class CriarColaboradorDto
     [Required] public string Nome { get; set; } = string.Empty;
     public string Funcao { get; set; } = "—";
     [Required] public Guid EquipeId { get; set; }
+    public decimal? CustoHora { get; set; }
 }
 
 public class TransferirColaboradorDto
@@ -75,6 +82,7 @@ public class AtualizarColaboradorDto
 {
     [Required] public string Nome { get; set; } = string.Empty;
     public string Funcao { get; set; } = "—";
+    public decimal? CustoHora { get; set; }
 }
 
 public class ObraDto
@@ -142,7 +150,7 @@ public class CriarFrenteDto
 {
     [Required] public Guid ObraId { get; set; }
     [Required] public string Nome { get; set; } = string.Empty;
-    [Required] public Guid EtapaId { get; set; }
+    public Guid EtapaId { get; set; }
     public Guid? EquipeId { get; set; }
     public string Unidade { get; set; } = "pç";
     public decimal QuantidadePrevista { get; set; }

@@ -37,4 +37,23 @@ public class CalculoFechamentoTests
         var regs = new[] { new RegistroFechamento(Hoje, Equipe, DateTimeOffset.UtcNow) };
         CalculoFechamento.FechadoPorRegistro(Hoje, Equipe, regs).Should().BeFalse();
     }
+
+    [Fact]
+    public void Planta_ConsultaFechaSeAlgumaEquipeFechou()
+    {
+        var regs = new[] { new RegistroFechamento(Hoje, Equipe, null) };
+        CalculoFechamento.FechadoNaConsulta(Hoje, null, regs).Should().BeTrue();
+        CalculoFechamento.FechadoNaConsulta(Hoje, Guid.NewGuid(), regs).Should().BeFalse();
+        CalculoFechamento.FechadoNaConsulta(Hoje, Equipe, regs).Should().BeTrue();
+    }
+
+    [Fact]
+    public void EncaixaReabertura_PlantaPegaTodas_EquipePegaPropriaEPlanta()
+    {
+        CalculoFechamento.EncaixaReabertura(null, Equipe).Should().BeTrue();
+        CalculoFechamento.EncaixaReabertura(null, null).Should().BeTrue();
+        CalculoFechamento.EncaixaReabertura(Equipe, Equipe).Should().BeTrue();
+        CalculoFechamento.EncaixaReabertura(Equipe, null).Should().BeTrue();
+        CalculoFechamento.EncaixaReabertura(Equipe, Guid.NewGuid()).Should().BeFalse();
+    }
 }

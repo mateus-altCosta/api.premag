@@ -89,7 +89,8 @@ builder.Services.AddCors(options =>
                 }
             })
             .AllowAnyHeader()
-            .AllowAnyMethod());
+            .AllowAnyMethod()
+            .WithExposedHeaders("Content-Disposition"));
 });
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");

@@ -98,6 +98,8 @@ public class FechamentoService : IFechamentoService
         _db.AuditLogs.Add(Auditoria.Novo(
             _db.TenantId, "FechamentoDia", row.Id, "fechar-dia", quem, _relogio.UtcAgora,
             depois: equipeId?.ToString()));
+        if (equipeId is Guid eqApro)
+            await ApropriarEncarregadoAsync(dia, eqApro, quem.Id, config, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
         var montado = await MontarAsync(dia, equipeId, cancellationToken);
@@ -128,16 +130,25 @@ public class FechamentoService : IFechamentoService
         if (CalculoFechamento.FechadoPorCalendario(dia, _relogio.HojeSaoPaulo, config.DiasFechamento))
             throw new RegraNegocioException("RN-15", "O prazo de calendário já fechou este dia; não dá para reabrir.", 422);
 
-        var row = await _db.FechamentosDia
-            .FirstOrDefaultAsync(f => f.Data == dia && f.EquipeId == equipeId && f.ReabertoEm == null, cancellationToken)
-            ?? throw new RegraNegocioException("DIA_NAO_FECHADO", "Este dia não está fechado por registro.", 422);
+        var vigentes = await _db.FechamentosDia
+            .Where(f => f.Data == dia && f.ReabertoEm == null)
+            .ToListAsync(cancellationToken);
+        var rows = vigentes
+            .Where(f => CalculoFechamento.EncaixaReabertura(equipeId, f.EquipeId))
+            .ToList();
+        if (rows.Count == 0)
+            throw new RegraNegocioException("DIA_NAO_FECHADO", "Este dia não está fechado por registro.", 422);
 
-        row.ReabertoEm = _relogio.UtcAgora;
-        row.ReabertoPorId = quem.Id;
-        row.MotivoReabertura = motivo;
-        _db.AuditLogs.Add(Auditoria.Novo(
-            _db.TenantId, "FechamentoDia", row.Id, "reabrir-dia", quem, _relogio.UtcAgora,
-            depois: motivo));
+        var agora = _relogio.UtcAgora;
+        foreach (var row in rows)
+        {
+            row.ReabertoEm = agora;
+            row.ReabertoPorId = quem.Id;
+            row.MotivoReabertura = motivo;
+            _db.AuditLogs.Add(Auditoria.Novo(
+                _db.TenantId, "FechamentoDia", row.Id, "reabrir-dia", quem, agora,
+                depois: motivo));
+        }
         await _db.SaveChangesAsync(cancellationToken);
         return await MontarAsync(dia, equipeId, cancellationToken);
     }
@@ -214,6 +225,8 @@ public class FechamentoService : IFechamentoService
             else
                 continue;
 
+            await ApropriarEncarregadoAsync(dia, equipe.Id, por, config, cancellationToken);
+
             _db.AuditLogs.Add(new AuditLog
             {
                 TenantId = _db.TenantId,
@@ -250,6 +263,128 @@ public class FechamentoService : IFechamentoService
         return pedida;
     }
 
+    private async Task ApropriarEncarregadoAsync(
+        DateOnly dia,
+        Guid equipeId,
+        Guid criadoPorId,
+        Configuracao config,
+        CancellationToken cancellationToken)
+    {
+        var equipe = await _db.Equipes.FirstOrDefaultAsync(e => e.Id == equipeId, cancellationToken);
+        if (equipe is null)
+            return;
+
+        var colabs = await _db.Colaboradores
+            .Where(c => c.EquipeId == equipeId && c.Ativo)
+            .ToListAsync(cancellationToken);
+
+        var enc = colabs.FirstOrDefault(c =>
+            c.Funcao.Contains("encarregado", StringComparison.OrdinalIgnoreCase));
+
+        Usuario? user = null;
+        if (equipe.EncarregadoId is Guid uid)
+            user = await _db.Users.FirstOrDefaultAsync(u => u.Id == uid, cancellationToken);
+
+        if (enc is null && user?.ColaboradorId is Guid cid)
+            enc = await _db.Colaboradores.FirstOrDefaultAsync(c => c.Id == cid && c.Ativo, cancellationToken);
+
+        if (enc is null && user is not null)
+            enc = colabs.FirstOrDefault(c =>
+                string.Equals(c.Nome, user.NomeExibicao, StringComparison.OrdinalIgnoreCase));
+
+        if (enc is null && user is not null)
+            enc = await CriarColaboradorEncarregadoAsync(equipe, user, cancellationToken);
+
+        if (enc is null)
+            return;
+
+        var ja = await _db.Apontamentos
+            .Where(a => a.ColaboradorId == enc.Id && a.Data == dia && a.HoraFim != null)
+            .SumAsync(a => a.MinutosEfetivos ?? 0, cancellationToken);
+        if (ja > 10)
+            return;
+
+        var pesos = await _db.Apontamentos
+            .Where(a => a.Data == dia
+                && a.HoraFim != null
+                && a.MinutosEfetivos != null
+                && a.Colaborador.EquipeId == equipeId
+                && a.ColaboradorId != enc.Id
+                && !a.Frente.Etapa.Indireta
+                && !a.Frente.Obra.Interna)
+            .GroupBy(a => a.FrenteId)
+            .Select(g => new { FrenteId = g.Key, Peso = g.Sum(x => x.MinutosEfetivos!.Value) })
+            .ToListAsync(cancellationToken);
+        if (pesos.Count == 0)
+            return;
+
+        var teto = config.JornadaPadraoMinutos;
+        var jornada = await _db.JornadasDia.AsNoTracking()
+            .FirstOrDefaultAsync(j => j.ColaboradorId == enc.Id && j.Data == dia, cancellationToken);
+        if (jornada is { MinutosApurados: > 0 })
+            teto = jornada.MinutosApurados;
+        teto = Math.Max(0, teto - ja);
+        if (teto <= 0)
+            return;
+
+        var fatias = RateioPonderado.Distribuir(teto, pesos.Select(p => (p.FrenteId, p.Peso)).ToList());
+        var janelas = RateioPonderado.EncaixarNaJornada(
+            config.JornadaInicio, config.JornadaFim, config.IntervaloInicio, config.IntervaloFim, fatias);
+        var agora = _relogio.UtcAgora;
+        foreach (var j in janelas)
+        {
+            if (j.Minutos <= 0 || j.Fim <= j.Inicio)
+                continue;
+            _db.Apontamentos.Add(new Apontamento
+            {
+                TenantId = _db.TenantId,
+                ClienteUuid = GeradorId.Novo(),
+                ColaboradorId = enc.Id,
+                FrenteId = j.Chave,
+                Data = dia,
+                HoraInicio = j.Inicio,
+                HoraFim = j.Fim,
+                MinutosEfetivos = j.Minutos,
+                Observacao = "Rateio do encarregado pelas frentes do dia",
+                Origem = OrigemApontamento.App,
+                JornadaNaoVerificada = jornada is null,
+                CriadoPorId = criadoPorId,
+                CriadoEm = agora
+            });
+        }
+    }
+
+    private async Task<Colaborador> CriarColaboradorEncarregadoAsync(
+        Equipe equipe,
+        Usuario user,
+        CancellationToken cancellationToken)
+    {
+        var matricula = (user.UserName ?? "ENC").Trim();
+        if (matricula.Length > 20)
+            matricula = matricula[..20];
+        if (await _db.Colaboradores.AnyAsync(c => c.Matricula == matricula, cancellationToken))
+            matricula = ("E" + user.Id.ToString("N")[..8]).ToUpperInvariant();
+
+        var agora = _relogio.UtcAgora;
+        var colab = new Colaborador
+        {
+            TenantId = _db.TenantId,
+            Matricula = matricula,
+            Nome = string.IsNullOrWhiteSpace(user.NomeExibicao)
+                ? (string.IsNullOrWhiteSpace(user.UserName) ? "Encarregado" : user.UserName.Trim())
+                : user.NomeExibicao.Trim(),
+            Funcao = "Encarregado",
+            EquipeId = equipe.Id,
+            Ativo = true,
+            OrigemCadastro = OrigemCadastro.Manual,
+            CriadoEm = agora,
+            AlteradoEm = agora
+        };
+        _db.Colaboradores.Add(colab);
+        user.ColaboradorId = colab.Id;
+        return colab;
+    }
+
     private async Task<FechamentoDiaDto> MontarAsync(DateOnly dia, Guid? equipeId, CancellationToken cancellationToken)
     {
         var config = await _db.Configuracoes.AsNoTracking().FirstOrDefaultAsync(cancellationToken) ?? new Configuracao();
@@ -261,13 +396,13 @@ public class FechamentoService : IFechamentoService
             .ToListAsync(cancellationToken);
 
         var vigente = registros
-            .Where(f => f.ReabertoEm is null && (f.EquipeId is null || f.EquipeId == equipeId))
+            .Where(f => f.ReabertoEm is null && CalculoFechamento.EncaixaReabertura(equipeId, f.EquipeId))
             .OrderByDescending(f => f.EquipeId is null) // planta primeiro se ambos
             .ThenByDescending(f => f.FechadoEm)
             .FirstOrDefault();
 
         var reaberto = registros
-            .Where(f => f.EquipeId == equipeId && f.ReabertoEm is not null)
+            .Where(f => f.ReabertoEm is not null && CalculoFechamento.EncaixaReabertura(equipeId, f.EquipeId))
             .OrderByDescending(f => f.ReabertoEm)
             .FirstOrDefault();
 

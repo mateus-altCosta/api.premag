@@ -41,7 +41,7 @@ public class DiarioService : IDiarioService
         var config = await _db.Configuracoes.AsNoTracking().FirstOrDefaultAsync(cancellationToken) ?? new Configuracao();
         var agora = HorarioPlanta(config);
 
-        var colaboradoresQuery = _db.Colaboradores.AsNoTracking().AsQueryable();
+        var colaboradoresQuery = _db.Colaboradores.AsNoTracking().Where(c => c.Ativo);
         if (equipe is not null)
             colaboradoresQuery = colaboradoresQuery.Where(c => c.EquipeId == equipe.Id);
         else if (!Permissoes.Tem(quem.Perfil, Permissoes.Gerente))
@@ -131,7 +131,7 @@ public class DiarioService : IDiarioService
         };
     }
 
-    public async Task<byte[]> GerarPdfAsync(
+    public async Task<DiarioPdf> GerarPdfAsync(
         DateOnly? data,
         Guid? equipeId,
         UsuarioLogado quem,
@@ -148,7 +148,7 @@ public class DiarioService : IDiarioService
 
         QuestPDF.Settings.License = LicenseType.Community;
 
-        return Document.Create(container =>
+        var pdf = Document.Create(container =>
         {
             container.Page(page =>
             {
@@ -210,6 +210,8 @@ public class DiarioService : IDiarioService
                 });
             });
         }).GeneratePdf();
+
+        return new DiarioPdf(pdf, NomeArquivoDiario.Pdf(diario.Escopo, diario.Data));
     }
 
     private async Task<Equipe?> ResolverEquipeAsync(Guid? equipeId, UsuarioLogado quem, CancellationToken cancellationToken)

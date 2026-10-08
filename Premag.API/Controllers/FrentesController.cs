@@ -77,4 +77,19 @@ public class FrentesController : ControllerBase
             return CadastroHttp.Falha(ex, _logger, "frentes.atualizar");
         }
     }
+
+    [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "Gerente")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _obraService.InativarFrenteAsync(id, cancellationToken);
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            return CadastroHttp.Falha(ex, _logger, "frentes.encerrar");
+        }
+    }
 }

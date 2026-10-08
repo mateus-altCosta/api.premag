@@ -46,15 +46,58 @@ public class EquipeService : IEquipeService
             .ToListAsync(cancellationToken);
         var mapa = presentes.ToDictionary(x => x.EquipeId, x => x.Qtd);
 
-        return equipes.Select(e => new EquipeDto
+        return equipes.Select(e => MapearEquipe(e, mapa.GetValueOrDefault(e.Id))).ToList();
+    }
+
+    public async Task<EquipeDto> CriarAsync(
+        CriarEquipeDto dto,
+        UsuarioLogado quem,
+        CancellationToken cancellationToken = default)
+    {
+        GarantirGerencia(quem, "Só Gerente ou acima cadastra equipe.");
+        var nome = NormalizarNomeEquipe(dto.Nome);
+        var cor = NormalizarCorEquipe(dto.Cor);
+        await GarantirNomeLivreAsync(nome, null, cancellationToken);
+
+        var agora = _relogio.UtcAgora;
+        var equipe = new Equipe
         {
-            Id = e.Id,
-            Nome = e.Nome,
-            Cor = e.Cor,
-            Ativa = e.Ativa,
-            EncarregadoId = e.EncarregadoId,
-            Presentes = mapa.GetValueOrDefault(e.Id)
-        }).ToList();
+            TenantId = _db.TenantId,
+            Nome = nome,
+            Cor = cor,
+            Ativa = true
+        };
+        _db.Equipes.Add(equipe);
+        _db.AuditLogs.Add(Auditoria.Novo(
+            _db.TenantId, "Equipe", equipe.Id, "criar-equipe", quem, agora, depois: nome));
+        await _db.SaveChangesAsync(cancellationToken);
+        return MapearEquipe(equipe, 0);
+    }
+
+    public async Task<EquipeDto> AtualizarAsync(
+        Guid id,
+        CriarEquipeDto dto,
+        UsuarioLogado quem,
+        CancellationToken cancellationToken = default)
+    {
+        GarantirGerencia(quem, "Só Gerente ou acima altera equipe.");
+        var equipe = await _db.Equipes.FirstOrDefaultAsync(e => e.Id == id, cancellationToken)
+            ?? throw new RegraNegocioException("EQUIPE_NAO_ENCONTRADA", "Equipe não encontrada.", 404);
+
+        var nome = NormalizarNomeEquipe(dto.Nome);
+        var cor = NormalizarCorEquipe(dto.Cor);
+        await GarantirNomeLivreAsync(nome, id, cancellationToken);
+
+        var antes = $"{equipe.Nome} {equipe.Cor}";
+        equipe.Nome = nome;
+        equipe.Cor = cor;
+        _db.AuditLogs.Add(Auditoria.Novo(
+            _db.TenantId, "Equipe", equipe.Id, "editar-equipe", quem, _relogio.UtcAgora,
+            antes: antes, depois: $"{nome} {cor}"));
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var presentes = await _db.Colaboradores.CountAsync(c => c.EquipeId == equipe.Id && c.Ativo, cancellationToken);
+        return MapearEquipe(equipe, presentes);
     }
 
     public async Task<IReadOnlyList<ColaboradorDto>> ListarColaboradoresAsync(
@@ -69,7 +112,7 @@ public class EquipeService : IEquipeService
             ?? throw new RegraNegocioException("EQUIPE_NAO_ENCONTRADA", "Equipe não encontrada.", 404);
 
         var lista = await _db.Colaboradores.AsNoTracking()
-            .Where(c => c.EquipeId == equipeId)
+            .Where(c => c.EquipeId == equipeId && c.Ativo)
             .OrderBy(c => c.Nome)
             .ToListAsync(cancellationToken);
 
@@ -105,13 +148,14 @@ public class EquipeService : IEquipeService
             Nome = nome,
             Funcao = string.IsNullOrWhiteSpace(dto.Funcao) ? "—" : dto.Funcao.Trim(),
             EquipeId = equipe.Id,
-            // RN-14: cadastro manual não entra em relatório de custo.
+            // RN-14: sem custo-hora fica fora do relatório de custo.
             OrigemCadastro = OrigemCadastro.Manual,
             CustoHora = null,
             Ativo = true,
             CriadoEm = agora,
             AlteradoEm = agora
         };
+        AplicarCustoHora(colaborador, dto.CustoHora);
         _db.Colaboradores.Add(colaborador);
         _db.AuditLogs.Add(Auditoria.Novo(
             _db.TenantId, "Colaborador", colaborador.Id, "criar-colab", quem, agora,
@@ -184,6 +228,7 @@ public class EquipeService : IEquipeService
 
         colaborador.Nome = nome;
         colaborador.Funcao = string.IsNullOrWhiteSpace(dto.Funcao) ? colaborador.Funcao : dto.Funcao.Trim();
+        AplicarCustoHora(colaborador, dto.CustoHora);
         colaborador.AlteradoEm = _relogio.UtcAgora;
         _db.AuditLogs.Add(Auditoria.Novo(
             _db.TenantId, "Colaborador", colaborador.Id, "editar-colab", quem, colaborador.AlteradoEm,
@@ -215,6 +260,62 @@ public class EquipeService : IEquipeService
         if (quem.EquipeId != equipeId)
             throw new RegraNegocioException("RN-10", "Encarregado só acessa colaboradores da própria equipe.", 403);
     }
+
+    private static void GarantirGerencia(UsuarioLogado quem, string mensagem)
+    {
+        if (!Permissoes.Tem(quem.Perfil, Permissoes.Gerente))
+            throw new RegraNegocioException("SEM_PERMISSAO", mensagem, 403);
+    }
+
+    private async Task GarantirNomeLivreAsync(string nome, Guid? ignorarId, CancellationToken cancellationToken)
+    {
+        var query = _db.Equipes.Where(e => e.Nome.ToLower() == nome.ToLower());
+        if (ignorarId is Guid id)
+            query = query.Where(e => e.Id != id);
+        if (await query.AnyAsync(cancellationToken))
+            throw new RegraNegocioException("EQUIPE_DUPLICADA", "Já existe equipe com esse nome.", 409);
+    }
+
+    private static string NormalizarNomeEquipe(string? nome)
+    {
+        var n = (nome ?? "").Trim();
+        if (n.Length == 0)
+            throw new RegraNegocioException("DADOS_INVALIDOS", "Nome da equipe é obrigatório.");
+        if (n.Length > 60)
+            throw new RegraNegocioException("DADOS_INVALIDOS", "Nome da equipe pode ter no máximo 60 caracteres.");
+        return n;
+    }
+
+    private static string NormalizarCorEquipe(string? cor)
+    {
+        var c = (cor ?? "").Trim();
+        if (c.Length == 0)
+            return "#4A5560";
+        if (c.Length != 7 || c[0] != '#' || !c[1..].All(Uri.IsHexDigit))
+            throw new RegraNegocioException("COR_INVALIDA", "Cor deve ser #RRGGBB.");
+        return c.ToUpperInvariant();
+    }
+
+    private static void AplicarCustoHora(Colaborador colaborador, decimal? custoHora)
+    {
+        if (custoHora is null)
+            return;
+        if (custoHora <= 0 || custoHora > 99_999_999.99m)
+            throw new RegraNegocioException("CUSTO_INVALIDO", "Informe um valor da hora maior que zero.");
+        colaborador.CustoHora = decimal.Round(custoHora.Value, 2);
+        // Com custo informado na ficha, entra no relatório — não depende só da importação.
+        colaborador.OrigemCadastro = OrigemCadastro.Folha;
+    }
+
+    private static EquipeDto MapearEquipe(Equipe e, int presentes) => new()
+    {
+        Id = e.Id,
+        Nome = e.Nome,
+        Cor = e.Cor,
+        Ativa = e.Ativa,
+        EncarregadoId = e.EncarregadoId,
+        Presentes = presentes
+    };
 
     private static ColaboradorDto Mapear(Colaborador c, string equipeNome, bool incluirCusto) => new()
     {

@@ -37,7 +37,7 @@ public class ApontamentoService : IApontamentoService
         GarantirEscopoEquipe(quem, equipe.Id);
 
         var colaboradores = await _db.Colaboradores.AsNoTracking()
-            .Where(c => c.EquipeId == equipe.Id)
+            .Where(c => c.EquipeId == equipe.Id && c.Ativo)
             .OrderBy(c => c.Nome)
             .ToListAsync(cancellationToken);
 
@@ -108,17 +108,23 @@ public class ApontamentoService : IApontamentoService
             };
         }).ToList();
 
-        var obras = await _db.Obras.AsNoTracking()
-            .Where(o => !o.Interna)
-            .OrderBy(o => o.Nome)
-            .ToListAsync(cancellationToken);
-        var frentes = await _db.Frentes.AsNoTracking()
+        var frentesQuery = _db.Frentes.AsNoTracking()
             .Include(f => f.Obra)
             .Include(f => f.Etapa)
             .Include(f => f.Equipe)
-            .Where(f => f.Ativa)
-            .OrderBy(f => f.Nome)
-            .ToListAsync(cancellationToken);
+            .Where(f => f.Ativa);
+        // Encarregado só vê frentes cadastradas na própria equipe.
+        if (!Permissoes.Tem(quem.Perfil, Permissoes.Gerente))
+            frentesQuery = frentesQuery.Where(f => f.EquipeId == equipe.Id);
+        var frentes = await frentesQuery.OrderBy(f => f.Nome).ToListAsync(cancellationToken);
+
+        var obrasQuery = _db.Obras.AsNoTracking().Where(o => !o.Interna);
+        if (!Permissoes.Tem(quem.Perfil, Permissoes.Gerente))
+        {
+            var obrasDaEquipe = frentes.Select(f => f.ObraId).Distinct().ToList();
+            obrasQuery = obrasQuery.Where(o => obrasDaEquipe.Contains(o.Id));
+        }
+        var obras = await obrasQuery.OrderBy(o => o.Nome).ToListAsync(cancellationToken);
         var motivos = await _db.MotivosParada.AsNoTracking().OrderBy(m => m.Nome).ToListAsync(cancellationToken);
 
         return new TurnoDto
@@ -207,6 +213,9 @@ public class ApontamentoService : IApontamentoService
             .FirstOrDefaultAsync(f => f.Id == dto.FrenteId && f.Ativa, cancellationToken)
             ?? throw new RegraNegocioException("FRENTE_NAO_ENCONTRADA", "Frente não encontrada.", 404);
 
+        if (!Permissoes.Tem(quem.Perfil, Permissoes.Gerente) && frente.EquipeId != colaborador.EquipeId)
+            throw new RegraNegocioException("FRENTE_FORA_DA_EQUIPE", "Esta frente não está associada à equipe.", 422);
+
         var hora = LimitarHorario(dto.HoraInicio, config, tetoAgora: !origemLote);
         var agora = _relogio.UtcAgora;
 
@@ -227,15 +236,29 @@ public class ApontamentoService : IApontamentoService
         {
             var ultimoFim = await UltimoFimAsync(colaborador.Id, dia, cancellationToken);
             var origemGap = ultimoFim ?? config.JornadaInicio;
+            if (ultimoFim is null)
+            {
+                var jornadaDia = await _db.JornadasDia.AsNoTracking()
+                    .FirstOrDefaultAsync(j => j.ColaboradorId == colaborador.Id && j.Data == dia, cancellationToken);
+                if (jornadaDia?.Entrada is TimeOnly entrada && entrada > origemGap)
+                    origemGap = entrada;
+            }
             var gap = CalculoApontamento.MinutosGap(origemGap, hora, config.IntervaloInicio, config.IntervaloFim);
 
             // RN-04: intervalo > 10 min exige motivo e vira parada na frente interna.
             if (CalculoApontamento.ExigeMotivoParada(gap))
             {
-                if (dto.MotivoParadaId is null)
+                var motivoId = dto.MotivoParadaId;
+                if (motivoId is null && !string.IsNullOrWhiteSpace(dto.Observacao))
+                {
+                    var outro = await _db.MotivosParada.AsNoTracking()
+                        .FirstOrDefaultAsync(m => m.ExigeObservacao, cancellationToken);
+                    motivoId = outro?.Id;
+                }
+                if (motivoId is null)
                     throw new RegraNegocioException("MOTIVO_OBRIGATORIO", "Informe o motivo da parada entre os serviços.", 422);
 
-                var motivo = await _db.MotivosParada.FirstOrDefaultAsync(m => m.Id == dto.MotivoParadaId, cancellationToken)
+                var motivo = await _db.MotivosParada.FirstOrDefaultAsync(m => m.Id == motivoId, cancellationToken)
                     ?? throw new RegraNegocioException("MOTIVO_NAO_ENCONTRADO", "Motivo de parada não encontrado.", 404);
                 if (motivo.ExigeObservacao && string.IsNullOrWhiteSpace(dto.Observacao))
                     throw new RegraNegocioException("OBSERVACAO_OBRIGATORIA", "Este motivo exige observação.", 422);

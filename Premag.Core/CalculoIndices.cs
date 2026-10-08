@@ -32,7 +32,7 @@ public sealed class IndiceFrente
     public decimal? CustoDireto { get; init; }
     public decimal? CustoTotal { get; init; }
     public decimal? CustoPorUnidade { get; init; }
-    public decimal AcoEstimadoKg { get; init; }
+    public decimal? AcoEstimadoKg { get; init; }
     public decimal AvancoPercentual { get; init; }
     public decimal Ritmo { get; init; }
     public int? DiasParaConcluir { get; init; }
@@ -117,8 +117,10 @@ public static class CalculoIndices
                 CustoDireto = custoDireto is decimal cdir ? Decimal.Round(cdir, 2) : null,
                 CustoTotal = custoTotal is decimal ct ? Decimal.Round(ct, 2) : null,
                 CustoPorUnidade = custoPorUnidade is decimal cpu ? Decimal.Round(cpu, 2) : null,
-                // RN-19: aço é estimado (taxa de projeto × quantidade concluída).
-                AcoEstimadoKg = Decimal.Round((frente.TaxaAcoKgPorUnidade ?? 0) * frente.QuantidadeConcluida, 1),
+                // RN-19: aço é estimado (taxa de projeto × quantidade concluída). Sem taxa, não estima.
+                AcoEstimadoKg = frente.TaxaAcoKgPorUnidade is decimal taxa
+                    ? Decimal.Round(taxa * frente.QuantidadeConcluida, 1)
+                    : null,
                 AvancoPercentual = prevista <= 0 ? 0 : Decimal.Round(frente.QuantidadeConcluida / prevista * 100, 1),
                 Ritmo = Decimal.Round(ritmo, 3),
                 DiasParaConcluir = dias

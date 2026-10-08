@@ -48,9 +48,8 @@ public class DiarioController : ControllerBase
             return Unauthorized(new { message = "Usuário não autenticado" });
         try
         {
-            var bytes = await _diario.GerarPdfAsync(data, equipeId, quem, cancellationToken);
-            var dia = data ?? DateOnly.FromDateTime(DateTime.Today);
-            return File(bytes, "application/pdf", $"diario-{dia:yyyy-MM-dd}.pdf");
+            var pdf = await _diario.GerarPdfAsync(data, equipeId, quem, cancellationToken);
+            return File(pdf.Bytes, "application/pdf", pdf.NomeArquivo);
         }
         catch (Exception ex)
         {

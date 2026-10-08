@@ -58,4 +58,25 @@ public class RelatoriosController : ControllerBase
             return CadastroHttp.Falha(ex, _logger, "relatorios.csv");
         }
     }
+
+    [HttpGet("pdf")]
+    public async Task<IActionResult> Pdf(
+        [FromQuery] string tipo = "produtividade",
+        [FromQuery] string periodo = "hoje",
+        [FromQuery] Guid? obraId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var quem = CadastroHttp.Quem(this);
+        if (quem is null)
+            return Unauthorized(new { message = "Usuário não autenticado" });
+        try
+        {
+            var bytes = await _relatorios.GerarPdfAsync(tipo, periodo, obraId, quem, cancellationToken);
+            return File(bytes, "application/pdf", $"relatorio-{tipo}-{periodo}.pdf");
+        }
+        catch (Exception ex)
+        {
+            return CadastroHttp.Falha(ex, _logger, "relatorios.pdf");
+        }
+    }
 }

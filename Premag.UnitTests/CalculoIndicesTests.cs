@@ -76,6 +76,14 @@ public class CalculoIndicesTests
     }
 
     [Fact]
+    public void RN19_SemTaxa_AcoEstimadoFicaNulo()
+    {
+        var frentes = new[] { Frente(F1, 26, 10) };
+        var mapa = CalculoIndices.Calcular(frentes, [], [], Dia);
+        mapa[F1].AcoEstimadoKg.Should().BeNull();
+    }
+
+    [Fact]
     public void RN06b_ExcedePrevisaoEmMaisDeDezPorCento()
     {
         CalculoIndices.ExcedePrevisaoEmMaisDeDezPorCento(100, 110).Should().BeFalse();

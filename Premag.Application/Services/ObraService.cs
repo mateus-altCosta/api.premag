@@ -26,7 +26,9 @@ public class ObraService : IObraService
         bool incluirInternas,
         CancellationToken cancellationToken = default)
     {
-        var query = _db.Obras.AsNoTracking().Include(o => o.Frentes).AsQueryable();
+        var query = _db.Obras.AsNoTracking()
+            .Include(o => o.Frentes).ThenInclude(f => f.Etapa)
+            .AsQueryable();
         if (!incluirInternas)
             query = query.Where(o => !o.Interna);
         if (status is not null)
@@ -39,7 +41,7 @@ public class ObraService : IObraService
     public async Task<ObraDto?> ObterAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var obra = await _db.Obras.AsNoTracking()
-            .Include(o => o.Frentes)
+            .Include(o => o.Frentes).ThenInclude(f => f.Etapa)
             .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
         return obra is null ? null : Mapear(obra);
     }
@@ -67,7 +69,8 @@ public class ObraService : IObraService
         AtualizarObraDto dto,
         CancellationToken cancellationToken = default)
     {
-        var obra = await _db.Obras.Include(o => o.Frentes)
+        var obra = await _db.Obras
+            .Include(o => o.Frentes).ThenInclude(f => f.Etapa)
             .FirstOrDefaultAsync(o => o.Id == id, cancellationToken)
             ?? throw new RegraNegocioException("OBRA_NAO_ENCONTRADA", "Obra não encontrada.", 404);
 
@@ -111,15 +114,14 @@ public class ObraService : IObraService
         var obra = await _db.Obras.FirstOrDefaultAsync(o => o.Id == dto.ObraId, cancellationToken)
             ?? throw new RegraNegocioException("OBRA_NAO_ENCONTRADA", "Obra não encontrada.", 404);
 
-        var etapa = await _db.Etapas.FirstOrDefaultAsync(e => e.Id == dto.EtapaId, cancellationToken)
-            ?? throw new RegraNegocioException("ETAPA_NAO_ENCONTRADA", "Etapa não encontrada.", 404);
-
         Equipe? equipe = null;
         if (dto.EquipeId is Guid eid)
         {
             equipe = await _db.Equipes.FirstOrDefaultAsync(e => e.Id == eid, cancellationToken)
                 ?? throw new RegraNegocioException("EQUIPE_NAO_ENCONTRADA", "Equipe não encontrada.", 404);
         }
+
+        var etapa = await ResolverEtapaAsync(dto.EtapaId, equipe?.Nome, cancellationToken);
 
         var unidade = string.IsNullOrWhiteSpace(dto.Unidade) ? "pç" : dto.Unidade.Trim();
         if (!Unidades.Contains(unidade))
@@ -139,7 +141,7 @@ public class ObraService : IObraService
             EquipeId = equipe?.Id,
             Unidade = unidade,
             QuantidadePrevista = dto.QuantidadePrevista < 0 ? 0 : dto.QuantidadePrevista,
-            TaxaAcoKgPorUnidade = dto.TaxaAcoKgPorUnidade,
+            TaxaAcoKgPorUnidade = dto.TaxaAcoKgPorUnidade is > 0 ? dto.TaxaAcoKgPorUnidade : null,
             TaxaAcoUnidade = UnidadeAco.Normalizar(dto.TaxaAcoUnidade),
             HhOrcadoPorUnidade = dto.HhOrcadoPorUnidade,
             ItemOrcamentoSienge = string.IsNullOrWhiteSpace(dto.ItemOrcamentoSienge)
@@ -172,15 +174,16 @@ public class ObraService : IObraService
         if (frente.Obra.Interna && dto.ObraId != frente.ObraId)
             throw new RegraNegocioException("RN-17", "A frente de indiretos não muda de obra.", 422);
 
-        var etapa = await _db.Etapas.FirstOrDefaultAsync(e => e.Id == dto.EtapaId, cancellationToken)
-            ?? throw new RegraNegocioException("ETAPA_NAO_ENCONTRADA", "Etapa não encontrada.", 404);
-
         Equipe? equipe = null;
         if (dto.EquipeId is Guid eid)
         {
             equipe = await _db.Equipes.FirstOrDefaultAsync(e => e.Id == eid, cancellationToken)
                 ?? throw new RegraNegocioException("EQUIPE_NAO_ENCONTRADA", "Equipe não encontrada.", 404);
         }
+
+        var etapa = dto.EtapaId != Guid.Empty
+            ? await ResolverEtapaAsync(dto.EtapaId, equipe?.Nome, cancellationToken)
+            : frente.Etapa;
 
         var unidade = string.IsNullOrWhiteSpace(dto.Unidade) ? frente.Unidade : dto.Unidade.Trim();
         if (!Unidades.Contains(unidade))
@@ -198,7 +201,7 @@ public class ObraService : IObraService
         frente.EquipeId = equipe?.Id;
         frente.Unidade = unidade;
         frente.QuantidadePrevista = dto.QuantidadePrevista < 0 ? 0 : dto.QuantidadePrevista;
-        frente.TaxaAcoKgPorUnidade = dto.TaxaAcoKgPorUnidade;
+        frente.TaxaAcoKgPorUnidade = dto.TaxaAcoKgPorUnidade is > 0 ? dto.TaxaAcoKgPorUnidade : null;
         frente.TaxaAcoUnidade = UnidadeAco.Normalizar(dto.TaxaAcoUnidade);
         frente.HhOrcadoPorUnidade = dto.HhOrcadoPorUnidade;
         frente.ItemOrcamentoSienge = string.IsNullOrWhiteSpace(dto.ItemOrcamentoSienge)
@@ -214,11 +217,45 @@ public class ObraService : IObraService
         return Mapear(frente);
     }
 
+    public async Task InativarFrenteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var frente = await _db.Frentes
+            .Include(f => f.Obra)
+            .FirstOrDefaultAsync(f => f.Id == id, cancellationToken)
+            ?? throw new RegraNegocioException("FRENTE_NAO_ENCONTRADA", "Frente não encontrada.", 404);
+
+        if (frente.Obra.Interna)
+            throw new RegraNegocioException("RN-17", "A frente de indiretos não pode ser encerrada.", 422);
+
+        if (!frente.Ativa)
+            return;
+
+        frente.Ativa = false;
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<Etapa> ResolverEtapaAsync(
+        Guid etapaId,
+        string? equipeNome,
+        CancellationToken cancellationToken)
+    {
+        if (etapaId != Guid.Empty)
+        {
+            return await _db.Etapas.FirstOrDefaultAsync(e => e.Id == etapaId, cancellationToken)
+                ?? throw new RegraNegocioException("ETAPA_NAO_ENCONTRADA", "Etapa não encontrada.", 404);
+        }
+
+        var etapas = await _db.Etapas.AsNoTracking()
+            .Select(e => new { e.Id, e.Nome, e.Indireta })
+            .ToListAsync(cancellationToken);
+        var id = EtapaPorEquipe.Resolver(equipeNome, etapas.Select(e => (e.Id, e.Nome, e.Indireta)))
+            ?? throw new RegraNegocioException("ETAPA_NAO_ENCONTRADA", "Etapa não encontrada.", 404);
+        return await _db.Etapas.FirstAsync(e => e.Id == id, cancellationToken);
+    }
+
     private static ObraDto Mapear(Obra obra)
     {
         var frentes = obra.Frentes?.Where(f => f.Ativa).ToList() ?? [];
-        var prevista = frentes.Sum(f => f.QuantidadePrevista);
-        var feita = frentes.Sum(f => f.QuantidadeConcluida);
         return new ObraDto
         {
             Id = obra.Id,
@@ -230,7 +267,8 @@ public class ObraService : IObraService
             Interna = obra.Interna,
             Status = obra.Status,
             QuantidadeFrentes = frentes.Count,
-            PercentualAvanco = prevista <= 0 ? 0 : Math.Round(feita / prevista * 100, 1)
+            PercentualAvanco = AvancoObra.Percentual(frentes.Select(f =>
+                (f.Ativa, f.Etapa?.Indireta ?? false, f.Etapa?.Nome, f.QuantidadePrevista, f.QuantidadeConcluida)))
         };
     }
 

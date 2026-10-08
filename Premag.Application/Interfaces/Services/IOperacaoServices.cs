@@ -13,10 +13,12 @@ public interface IFotoService
     Task<int> ExpurgarExpiradasAsync(CancellationToken cancellationToken = default);
 }
 
+public sealed record DiarioPdf(byte[] Bytes, string NomeArquivo);
+
 public interface IDiarioService
 {
     Task<DiarioDto> ObterAsync(DateOnly? data, Guid? equipeId, UsuarioLogado quem, CancellationToken cancellationToken = default);
-    Task<byte[]> GerarPdfAsync(DateOnly? data, Guid? equipeId, UsuarioLogado quem, CancellationToken cancellationToken = default);
+    Task<DiarioPdf> GerarPdfAsync(DateOnly? data, Guid? equipeId, UsuarioLogado quem, CancellationToken cancellationToken = default);
 }
 
 public interface IOcorrenciaService
@@ -30,6 +32,7 @@ public interface IRelatorioService
 {
     Task<RelatorioDto> ObterAsync(string tipo, string periodo, Guid? obraId, UsuarioLogado quem, CancellationToken cancellationToken = default);
     Task<byte[]> GerarCsvAsync(string tipo, string periodo, Guid? obraId, UsuarioLogado quem, CancellationToken cancellationToken = default);
+    Task<byte[]> GerarPdfAsync(string tipo, string periodo, Guid? obraId, UsuarioLogado quem, CancellationToken cancellationToken = default);
 }
 
 public interface IImportacaoService

@@ -103,6 +103,9 @@ public class FotoService : IFotoService
             .FirstOrDefaultAsync(f => f.Id == frenteId && f.Ativa, cancellationToken)
             ?? throw new RegraNegocioException("FRENTE_NAO_ENCONTRADA", "Frente não encontrada.", 404);
 
+        if (!Permissoes.Tem(quem.Perfil, Permissoes.Gerente) && frente.EquipeId != quem.EquipeId)
+            throw new RegraNegocioException("FRENTE_FORA_DA_EQUIPE", "Esta frente não está associada à equipe.", 422);
+
         Colaborador? colaborador = null;
         if (colaboradorId is Guid cid)
         {

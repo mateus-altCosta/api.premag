@@ -20,6 +20,27 @@ public static class CalculoFechamento
             && r.ReabertoEm is null
             && (r.EquipeId is null || (equipeId is Guid eq && r.EquipeId == eq)));
     }
+
+    /// <summary>
+    /// Consulta da planta (EquipeId nulo): fechado se qualquer registro do dia ainda vale.
+    /// Equipe específica segue FechadoPorRegistro (planta trava todas).
+    /// </summary>
+    public static bool FechadoNaConsulta(
+        DateOnly data,
+        Guid? equipeId,
+        IEnumerable<RegistroFechamento> registros)
+    {
+        if (equipeId is Guid eq)
+            return FechadoPorRegistro(data, eq, registros);
+        return registros.Any(r => r.Data == data && r.ReabertoEm is null);
+    }
+
+    /// <summary>
+    /// Planta reabre todos os registros vigentes do dia.
+    /// Equipe reabre o próprio e o da planta (que trava todas).
+    /// </summary>
+    public static bool EncaixaReabertura(Guid? equipePedido, Guid? equipeRegistro) =>
+        equipePedido is null || equipeRegistro is null || equipePedido == equipeRegistro;
 }
 
 public readonly record struct RegistroFechamento(DateOnly Data, Guid? EquipeId, DateTimeOffset? ReabertoEm);

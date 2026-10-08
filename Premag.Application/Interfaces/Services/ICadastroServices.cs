@@ -6,11 +6,14 @@ namespace Premag.Application.Interfaces.Services;
 public interface ICatalogoService
 {
     Task<CatalogoDto> ObterAsync(CancellationToken cancellationToken = default);
+    Task<CatalogoDto> AtualizarJornadaAsync(ConfiguracaoDto dto, UsuarioLogado quem, CancellationToken cancellationToken = default);
 }
 
 public interface IEquipeService
 {
     Task<IReadOnlyList<EquipeDto>> ListarAsync(UsuarioLogado quem, CancellationToken cancellationToken = default);
+    Task<EquipeDto> CriarAsync(CriarEquipeDto dto, UsuarioLogado quem, CancellationToken cancellationToken = default);
+    Task<EquipeDto> AtualizarAsync(Guid id, CriarEquipeDto dto, UsuarioLogado quem, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ColaboradorDto>> ListarColaboradoresAsync(Guid equipeId, UsuarioLogado quem, CancellationToken cancellationToken = default);
     Task<ColaboradorDto> CriarColaboradorAsync(CriarColaboradorDto dto, UsuarioLogado quem, CancellationToken cancellationToken = default);
     Task<ColaboradorDto> TransferirAsync(Guid colaboradorId, TransferirColaboradorDto dto, UsuarioLogado quem, CancellationToken cancellationToken = default);
@@ -27,4 +30,5 @@ public interface IObraService
     Task<IReadOnlyList<FrenteDto>> ListarFrentesAsync(Guid? obraId, Guid? equipeId, bool? ativa, CancellationToken cancellationToken = default);
     Task<FrenteDto> CriarFrenteAsync(CriarFrenteDto dto, CancellationToken cancellationToken = default);
     Task<FrenteDto> AtualizarFrenteAsync(Guid id, CriarFrenteDto dto, CancellationToken cancellationToken = default);
+    Task InativarFrenteAsync(Guid id, CancellationToken cancellationToken = default);
 }

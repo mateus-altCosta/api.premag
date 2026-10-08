@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Premag.Application.Common;
 using Premag.Core.Entities;
 
@@ -20,10 +21,20 @@ internal static class Auditoria
             Entidade = entidade,
             EntidadeId = entidadeId,
             Acao = acao.Length <= 20 ? acao : acao[..20],
-            Antes = antes,
-            Depois = depois,
+            Antes = Jsonb(antes),
+            Depois = Jsonb(depois),
             UsuarioId = quem.Id,
             Em = em,
             Ip = quem.Ip
         };
+
+    /// <summary>audit_logs.antes/depois são jsonb: texto livre vira string JSON.</summary>
+    private static string? Jsonb(string? valor)
+    {
+        if (valor is null) return null;
+        var t = valor.TrimStart();
+        if (t.Length > 0 && (t[0] == '{' || t[0] == '['))
+            return valor;
+        return JsonSerializer.Serialize(valor);
+    }
 }

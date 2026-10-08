@@ -65,7 +65,7 @@ public class ObrasController : ControllerBase
 
         try
         {
-            var frentes = await _obraService.ListarFrentesAsync(id, null, null, cancellationToken);
+            var frentes = await _obraService.ListarFrentesAsync(id, null, true, cancellationToken);
             return Ok(await _producaoService.EnriquecerComIndicesAsync(frentes, quem, cancellationToken));
         }
         catch (Exception ex)
