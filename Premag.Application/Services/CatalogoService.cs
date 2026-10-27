@@ -21,7 +21,7 @@ public class CatalogoService : ICatalogoService
         _relogio = relogio;
     }
 
-    public async Task<CatalogoDto> ObterAsync(CancellationToken cancellationToken = default)
+    public async Task<CatalogoDto> ObterAsync(UsuarioLogado? quem, CancellationToken cancellationToken = default)
     {
         var etapas = await _db.Etapas
             .AsNoTracking()
@@ -35,16 +35,33 @@ public class CatalogoService : ICatalogoService
             })
             .ToListAsync(cancellationToken);
 
-        var motivos = await _db.MotivosParada
-            .AsNoTracking()
+        var gerir = quem is not null && Permissoes.Tem(quem.Perfil, Permissoes.Gerente);
+        var motivosQuery = _db.MotivosParada.AsNoTracking();
+        if (!gerir)
+            motivosQuery = motivosQuery.Where(m => m.Ativo);
+        var motivos = await motivosQuery
             .OrderBy(m => m.Nome)
             .Select(m => new MotivoParadaDto
             {
                 Id = m.Id,
                 Nome = m.Nome,
-                ExigeObservacao = m.ExigeObservacao
+                ExigeObservacao = m.ExigeObservacao,
+                Ativo = m.Ativo
             })
             .ToListAsync(cancellationToken);
+
+        var encarregados = gerir
+            ? await _db.Users.AsNoTracking()
+                .Where(u => u.Ativo && u.Perfil == Permissoes.Encarregado)
+                .OrderBy(u => u.NomeExibicao)
+                .Select(u => new UsuarioResumoDto
+                {
+                    Id = u.Id,
+                    Nome = u.NomeExibicao,
+                    EquipeId = u.EquipeId
+                })
+                .ToListAsync(cancellationToken)
+            : [];
 
         var config = await _db.Configuracoes.AsNoTracking().FirstOrDefaultAsync(cancellationToken);
 
@@ -52,7 +69,8 @@ public class CatalogoService : ICatalogoService
         {
             Etapas = etapas,
             MotivosParada = motivos,
-            Configuracao = Mapear(config)
+            Configuracao = Mapear(config),
+            Encarregados = encarregados
         };
     }
 
@@ -87,8 +105,94 @@ public class CatalogoService : ICatalogoService
             _db.TenantId, "Configuracao", config.Id, "editar-jornada", quem, _relogio.UtcAgora,
             antes: antes, depois: $"{inicio:HH\\:mm}-{fim:HH\\:mm} {intIni:HH\\:mm}-{intFim:HH\\:mm}"));
         await _db.SaveChangesAsync(cancellationToken);
-        return await ObterAsync(cancellationToken);
+        return await ObterAsync(quem, cancellationToken);
     }
+
+    public async Task<MotivoParadaDto> CriarMotivoAsync(
+        CriarMotivoParadaDto dto,
+        UsuarioLogado quem,
+        CancellationToken cancellationToken = default)
+    {
+        GarantirGerencia(quem);
+        var nome = CadastroTexto.NomeMotivo(dto.Nome);
+        await GarantirNomeMotivoLivreAsync(nome, null, cancellationToken);
+
+        var motivo = new MotivoParada
+        {
+            TenantId = _db.TenantId,
+            Nome = nome,
+            ExigeObservacao = dto.ExigeObservacao,
+            Ativo = true
+        };
+        _db.MotivosParada.Add(motivo);
+        _db.AuditLogs.Add(Auditoria.Novo(
+            _db.TenantId, "MotivoParada", motivo.Id, "criar-motivo", quem, _relogio.UtcAgora, depois: nome));
+        await _db.SaveChangesAsync(cancellationToken);
+        return Mapear(motivo);
+    }
+
+    public async Task<MotivoParadaDto> AtualizarMotivoAsync(
+        Guid id,
+        CriarMotivoParadaDto dto,
+        UsuarioLogado quem,
+        CancellationToken cancellationToken = default)
+    {
+        GarantirGerencia(quem);
+        var motivo = await _db.MotivosParada.FirstOrDefaultAsync(m => m.Id == id, cancellationToken)
+            ?? throw new RegraNegocioException("MOTIVO_NAO_ENCONTRADO", "Motivo de parada não encontrado.", 404);
+
+        var nome = CadastroTexto.NomeMotivo(dto.Nome);
+        await GarantirNomeMotivoLivreAsync(nome, id, cancellationToken);
+        var antes = $"{motivo.Nome} obs={motivo.ExigeObservacao} ativo={motivo.Ativo}";
+        motivo.Nome = nome;
+        motivo.ExigeObservacao = dto.ExigeObservacao;
+        motivo.Ativo = dto.Ativo;
+        _db.AuditLogs.Add(Auditoria.Novo(
+            _db.TenantId, "MotivoParada", motivo.Id, "editar-motivo", quem, _relogio.UtcAgora,
+            antes: antes, depois: $"{nome} obs={motivo.ExigeObservacao} ativo={motivo.Ativo}"));
+        await _db.SaveChangesAsync(cancellationToken);
+        return Mapear(motivo);
+    }
+
+    public async Task InativarMotivoAsync(
+        Guid id,
+        UsuarioLogado quem,
+        CancellationToken cancellationToken = default)
+    {
+        GarantirGerencia(quem);
+        var motivo = await _db.MotivosParada.FirstOrDefaultAsync(m => m.Id == id, cancellationToken)
+            ?? throw new RegraNegocioException("MOTIVO_NAO_ENCONTRADO", "Motivo de parada não encontrado.", 404);
+        if (!motivo.Ativo)
+            return;
+        motivo.Ativo = false;
+        _db.AuditLogs.Add(Auditoria.Novo(
+            _db.TenantId, "MotivoParada", motivo.Id, "inativar-motivo", quem, _relogio.UtcAgora,
+            antes: motivo.Nome, depois: "inativo"));
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task GarantirNomeMotivoLivreAsync(string nome, Guid? ignorarId, CancellationToken cancellationToken)
+    {
+        var query = _db.MotivosParada.Where(m => m.Nome.ToLower() == nome.ToLower());
+        if (ignorarId is Guid id)
+            query = query.Where(m => m.Id != id);
+        if (await query.AnyAsync(cancellationToken))
+            throw new RegraNegocioException("MOTIVO_DUPLICADO", "Já existe motivo com esse nome.", 409);
+    }
+
+    private static void GarantirGerencia(UsuarioLogado quem)
+    {
+        if (!Permissoes.Tem(quem.Perfil, Permissoes.Gerente))
+            throw new RegraNegocioException("SEM_PERMISSAO", "Só Gerente ou acima altera o catálogo.", 403);
+    }
+
+    private static MotivoParadaDto Mapear(MotivoParada m) => new()
+    {
+        Id = m.Id,
+        Nome = m.Nome,
+        ExigeObservacao = m.ExigeObservacao,
+        Ativo = m.Ativo
+    };
 
     private static ConfiguracaoDto Mapear(Configuracao? config) => new()
     {

@@ -9,6 +9,7 @@ public class CatalogoDto
     public IReadOnlyList<MotivoParadaDto> MotivosParada { get; set; } = [];
     public IReadOnlyList<string> Unidades { get; set; } = ["pç", "m³", "m²", "m", "kg"];
     public ConfiguracaoDto Configuracao { get; set; } = new();
+    public IReadOnlyList<UsuarioResumoDto> Encarregados { get; set; } = [];
 }
 
 public class EtapaDto
@@ -24,6 +25,21 @@ public class MotivoParadaDto
     public Guid Id { get; set; }
     public string Nome { get; set; } = string.Empty;
     public bool ExigeObservacao { get; set; }
+    public bool Ativo { get; set; } = true;
+}
+
+public class CriarMotivoParadaDto
+{
+    [Required] public string Nome { get; set; } = string.Empty;
+    public bool ExigeObservacao { get; set; }
+    public bool Ativo { get; set; } = true;
+}
+
+public class UsuarioResumoDto
+{
+    public Guid Id { get; set; }
+    public string Nome { get; set; } = string.Empty;
+    public Guid? EquipeId { get; set; }
 }
 
 public class ConfiguracaoDto
@@ -43,12 +59,14 @@ public class EquipeDto
     public bool Ativa { get; set; }
     public int Presentes { get; set; }
     public Guid? EncarregadoId { get; set; }
+    public string? EncarregadoNome { get; set; }
 }
 
 public class CriarEquipeDto
 {
     [Required] public string Nome { get; set; } = string.Empty;
     public string Cor { get; set; } = "#4A5560";
+    public Guid? EncarregadoId { get; set; }
 }
 
 public class ColaboradorDto
@@ -62,6 +80,7 @@ public class ColaboradorDto
     public bool Ativo { get; set; }
     public OrigemCadastro OrigemCadastro { get; set; }
     public decimal? CustoHora { get; set; }
+    public string? CodigoExterno { get; set; }
 }
 
 public class CriarColaboradorDto
@@ -71,6 +90,7 @@ public class CriarColaboradorDto
     public string Funcao { get; set; } = "—";
     [Required] public Guid EquipeId { get; set; }
     public decimal? CustoHora { get; set; }
+    public string? CodigoExterno { get; set; }
 }
 
 public class TransferirColaboradorDto
@@ -83,6 +103,7 @@ public class AtualizarColaboradorDto
     [Required] public string Nome { get; set; } = string.Empty;
     public string Funcao { get; set; } = "—";
     public decimal? CustoHora { get; set; }
+    public string? CodigoExterno { get; set; }
 }
 
 public class ObraDto

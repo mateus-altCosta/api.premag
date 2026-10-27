@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Premag.Application.Common;
 using Premag.Application.Interfaces.Services;
 using Premag.Core;
 using Premag.Core.DTOs;
+using Premag.Core.Exceptions;
 using Premag.Infrastructure.Data;
 
 namespace Premag.Application.Services;
@@ -71,13 +73,11 @@ public class AuthService : IAuthService
             ?? throw new UnauthorizedAccessException("Usuário não autenticado");
 
         if (!BCrypt.Net.BCrypt.Verify(dto.SenhaAtual, usuario.SenhaHash))
-            throw new Premag.Core.Exceptions.RegraNegocioException("SENHA_ATUAL", "A senha atual não confere.", 422);
+            throw new RegraNegocioException("SENHA_ATUAL", "A senha atual não confere.", 422);
 
-        var nova = (dto.SenhaNova ?? "").Trim();
-        if (nova.Length < 8)
-            throw new Premag.Core.Exceptions.RegraNegocioException("SENHA_FRACA", "A senha nova precisa ter pelo menos 8 caracteres.", 422);
+        var nova = CadastroTexto.SenhaNova(dto.SenhaNova);
         if (BCrypt.Net.BCrypt.Verify(nova, usuario.SenhaHash))
-            throw new Premag.Core.Exceptions.RegraNegocioException("SENHA_IGUAL", "A senha nova deve ser diferente da atual.", 422);
+            throw new RegraNegocioException("SENHA_IGUAL", "A senha nova deve ser diferente da atual.", 422);
 
         usuario.SenhaHash = BCrypt.Net.BCrypt.HashPassword(nova);
         _context.AuditLogs.Add(new Premag.Core.Entities.AuditLog
@@ -90,5 +90,61 @@ public class AuthService : IAuthService
             Em = DateTimeOffset.UtcNow
         });
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<UsuarioListaDto>> ListarUsuariosAsync(
+        UsuarioLogado quem,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Permissoes.Tem(quem.Perfil, Permissoes.Gerente))
+            throw new RegraNegocioException("SEM_PERMISSAO", "Só Gerente ou acima lista usuários.", 403);
+
+        return await _context.Users.AsNoTracking()
+            .Where(u => u.Ativo)
+            .OrderBy(u => u.NomeExibicao)
+            .Select(u => new UsuarioListaDto
+            {
+                Id = u.Id,
+                UserName = u.UserName,
+                Nome = u.NomeExibicao,
+                Perfil = u.Perfil,
+                EquipeId = u.EquipeId,
+                EquipeNome = u.Equipe != null ? u.Equipe.Nome : null
+            })
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task RedefinirSenhaAsync(
+        Guid id,
+        RedefinirSenhaDto dto,
+        UsuarioLogado quem,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Permissoes.Tem(quem.Perfil, Permissoes.Gerente))
+            throw new RegraNegocioException("SEM_PERMISSAO", "Só Gerente ou acima redefine senha.", 403);
+
+        if (id == quem.Id)
+            throw new RegraNegocioException("SENHA_PROPRIA", "Troque a própria senha em Conta.", 422);
+
+        var alvo = await _context.Users.FirstOrDefaultAsync(u => u.Id == id && u.Ativo, cancellationToken)
+            ?? throw new RegraNegocioException("USUARIO_NAO_ENCONTRADO", "Usuário não encontrado.", 404);
+
+        if (!Permissoes.PodeRedefinirSenha(quem.Perfil, alvo.Perfil))
+            throw new RegraNegocioException("SEM_PERMISSAO", "Não redefine senha de perfil igual ou acima.", 403);
+
+        var nova = CadastroTexto.SenhaNova(dto.SenhaNova);
+        alvo.SenhaHash = BCrypt.Net.BCrypt.HashPassword(nova);
+        _context.AuditLogs.Add(new Premag.Core.Entities.AuditLog
+        {
+            TenantId = alvo.TenantId,
+            Entidade = "Usuario",
+            EntidadeId = alvo.Id,
+            Acao = "redefinir-senha",
+            Depois = alvo.UserName,
+            UsuarioId = quem.Id,
+            Em = DateTimeOffset.UtcNow
+        });
+        await _context.SaveChangesAsync(cancellationToken);
+        await _refreshTokenService.RevokeAsync(null, alvo.Id, null, cancellationToken);
     }
 }

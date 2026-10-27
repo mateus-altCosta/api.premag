@@ -23,6 +23,7 @@ public class RelatoriosController : ControllerBase
         [FromQuery] string tipo = "produtividade",
         [FromQuery] string periodo = "hoje",
         [FromQuery] Guid? obraId = null,
+        [FromQuery] Guid? equipeId = null,
         CancellationToken cancellationToken = default)
     {
         var quem = CadastroHttp.Quem(this);
@@ -30,7 +31,7 @@ public class RelatoriosController : ControllerBase
             return Unauthorized(new { message = "Usuário não autenticado" });
         try
         {
-            return Ok(await _relatorios.ObterAsync(tipo, periodo, obraId, quem, cancellationToken));
+            return Ok(await _relatorios.ObterAsync(tipo, periodo, obraId, equipeId, quem, cancellationToken));
         }
         catch (Exception ex)
         {
@@ -43,6 +44,7 @@ public class RelatoriosController : ControllerBase
         [FromQuery] string tipo = "produtividade",
         [FromQuery] string periodo = "hoje",
         [FromQuery] Guid? obraId = null,
+        [FromQuery] Guid? equipeId = null,
         CancellationToken cancellationToken = default)
     {
         var quem = CadastroHttp.Quem(this);
@@ -50,7 +52,7 @@ public class RelatoriosController : ControllerBase
             return Unauthorized(new { message = "Usuário não autenticado" });
         try
         {
-            var bytes = await _relatorios.GerarCsvAsync(tipo, periodo, obraId, quem, cancellationToken);
+            var bytes = await _relatorios.GerarCsvAsync(tipo, periodo, obraId, equipeId, quem, cancellationToken);
             return File(bytes, "text/csv; charset=utf-8", $"relatorio-{tipo}-{periodo}.csv");
         }
         catch (Exception ex)
@@ -64,6 +66,7 @@ public class RelatoriosController : ControllerBase
         [FromQuery] string tipo = "produtividade",
         [FromQuery] string periodo = "hoje",
         [FromQuery] Guid? obraId = null,
+        [FromQuery] Guid? equipeId = null,
         CancellationToken cancellationToken = default)
     {
         var quem = CadastroHttp.Quem(this);
@@ -71,7 +74,7 @@ public class RelatoriosController : ControllerBase
             return Unauthorized(new { message = "Usuário não autenticado" });
         try
         {
-            var bytes = await _relatorios.GerarPdfAsync(tipo, periodo, obraId, quem, cancellationToken);
+            var bytes = await _relatorios.GerarPdfAsync(tipo, periodo, obraId, equipeId, quem, cancellationToken);
             return File(bytes, "application/pdf", $"relatorio-{tipo}-{periodo}.pdf");
         }
         catch (Exception ex)

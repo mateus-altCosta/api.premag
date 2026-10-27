@@ -72,6 +72,25 @@ public class EquipesController : ControllerBase
         }
     }
 
+    [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "Gerente")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        var quem = CadastroHttp.Quem(this);
+        if (quem is null)
+            return Unauthorized(new { message = "Usuário não autenticado" });
+
+        try
+        {
+            await _equipeService.InativarAsync(id, quem, cancellationToken);
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            return CadastroHttp.Falha(ex, _logger, "equipes.inativar");
+        }
+    }
+
     [HttpGet("{id:guid}/colaboradores")]
     public async Task<IActionResult> GetColaboradores(Guid id, CancellationToken cancellationToken)
     {

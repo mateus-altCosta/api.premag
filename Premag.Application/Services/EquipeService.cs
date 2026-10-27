@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Premag.Application.Common;
 using Premag.Application.Interfaces.Services;
 using Premag.Core;
+using Premag.Core.Constants;
 using Premag.Core.DTOs;
 using Premag.Core.Entities;
 using Premag.Core.Enums;
@@ -37,7 +38,7 @@ public class EquipeService : IEquipeService
             query = query.Where(e => e.Id == quem.EquipeId);
         }
 
-        var equipes = await query.OrderBy(e => e.Nome).ToListAsync(cancellationToken);
+        var equipes = await query.Include(e => e.Encarregado).OrderBy(e => e.Nome).ToListAsync(cancellationToken);
         var ids = equipes.Select(e => e.Id).ToList();
         var presentes = await _db.Colaboradores.AsNoTracking()
             .Where(c => ids.Contains(c.EquipeId) && c.Ativo)
@@ -67,6 +68,7 @@ public class EquipeService : IEquipeService
             Cor = cor,
             Ativa = true
         };
+        await AplicarEncarregadoAsync(equipe, dto.EncarregadoId, cancellationToken);
         _db.Equipes.Add(equipe);
         _db.AuditLogs.Add(Auditoria.Novo(
             _db.TenantId, "Equipe", equipe.Id, "criar-equipe", quem, agora, depois: nome));
@@ -81,23 +83,43 @@ public class EquipeService : IEquipeService
         CancellationToken cancellationToken = default)
     {
         GarantirGerencia(quem, "Só Gerente ou acima altera equipe.");
-        var equipe = await _db.Equipes.FirstOrDefaultAsync(e => e.Id == id, cancellationToken)
+        var equipe = await _db.Equipes.Include(e => e.Encarregado).FirstOrDefaultAsync(e => e.Id == id, cancellationToken)
             ?? throw new RegraNegocioException("EQUIPE_NAO_ENCONTRADA", "Equipe não encontrada.", 404);
 
         var nome = NormalizarNomeEquipe(dto.Nome);
         var cor = NormalizarCorEquipe(dto.Cor);
         await GarantirNomeLivreAsync(nome, id, cancellationToken);
 
-        var antes = $"{equipe.Nome} {equipe.Cor}";
+        var antes = $"{equipe.Nome} {equipe.Cor} enc={equipe.EncarregadoId}";
         equipe.Nome = nome;
         equipe.Cor = cor;
+        await AplicarEncarregadoAsync(equipe, dto.EncarregadoId, cancellationToken);
         _db.AuditLogs.Add(Auditoria.Novo(
             _db.TenantId, "Equipe", equipe.Id, "editar-equipe", quem, _relogio.UtcAgora,
-            antes: antes, depois: $"{nome} {cor}"));
+            antes: antes, depois: $"{nome} {cor} enc={equipe.EncarregadoId}"));
         await _db.SaveChangesAsync(cancellationToken);
 
         var presentes = await _db.Colaboradores.CountAsync(c => c.EquipeId == equipe.Id && c.Ativo, cancellationToken);
         return MapearEquipe(equipe, presentes);
+    }
+
+    public async Task InativarAsync(
+        Guid id,
+        UsuarioLogado quem,
+        CancellationToken cancellationToken = default)
+    {
+        GarantirGerencia(quem, "Só Gerente ou acima inativa equipe.");
+        var equipe = await _db.Equipes.FirstOrDefaultAsync(e => e.Id == id, cancellationToken)
+            ?? throw new RegraNegocioException("EQUIPE_NAO_ENCONTRADA", "Equipe não encontrada.", 404);
+
+        if (!equipe.Ativa)
+            return;
+
+        equipe.Ativa = false;
+        _db.AuditLogs.Add(Auditoria.Novo(
+            _db.TenantId, "Equipe", equipe.Id, "inativar-equipe", quem, _relogio.UtcAgora,
+            depois: equipe.Nome));
+        await _db.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<ColaboradorDto>> ListarColaboradoresAsync(
@@ -151,6 +173,7 @@ public class EquipeService : IEquipeService
             // RN-14: sem custo-hora fica fora do relatório de custo.
             OrigemCadastro = OrigemCadastro.Manual,
             CustoHora = null,
+            CodigoExterno = CadastroTexto.CodigoExterno(dto.CodigoExterno),
             Ativo = true,
             CriadoEm = agora,
             AlteradoEm = agora
@@ -228,6 +251,7 @@ public class EquipeService : IEquipeService
 
         colaborador.Nome = nome;
         colaborador.Funcao = string.IsNullOrWhiteSpace(dto.Funcao) ? colaborador.Funcao : dto.Funcao.Trim();
+        colaborador.CodigoExterno = CadastroTexto.CodigoExterno(dto.CodigoExterno);
         AplicarCustoHora(colaborador, dto.CustoHora);
         colaborador.AlteradoEm = _relogio.UtcAgora;
         _db.AuditLogs.Add(Auditoria.Novo(
@@ -269,7 +293,7 @@ public class EquipeService : IEquipeService
 
     private async Task GarantirNomeLivreAsync(string nome, Guid? ignorarId, CancellationToken cancellationToken)
     {
-        var query = _db.Equipes.Where(e => e.Nome.ToLower() == nome.ToLower());
+        var query = _db.Equipes.Where(e => e.Ativa && e.Nome.ToLower() == nome.ToLower());
         if (ignorarId is Guid id)
             query = query.Where(e => e.Id != id);
         if (await query.AnyAsync(cancellationToken))
@@ -307,6 +331,47 @@ public class EquipeService : IEquipeService
         colaborador.OrigemCadastro = OrigemCadastro.Folha;
     }
 
+    private async Task AplicarEncarregadoAsync(Equipe equipe, Guid? encarregadoId, CancellationToken cancellationToken)
+    {
+        if (encarregadoId == Guid.Empty)
+            encarregadoId = null;
+
+        if (equipe.EncarregadoId == encarregadoId)
+            return;
+
+        if (equipe.EncarregadoId is Guid antigoId && antigoId != encarregadoId)
+        {
+            var antigo = await _db.Users.FirstOrDefaultAsync(u => u.Id == antigoId, cancellationToken);
+            if (antigo is not null && antigo.EquipeId == equipe.Id)
+                antigo.EquipeId = null;
+        }
+
+        if (encarregadoId is Guid novoId)
+        {
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == novoId, cancellationToken)
+                ?? throw new RegraNegocioException("USUARIO_NAO_ENCONTRADO", "Encarregado não encontrado.", 404);
+            if (!user.Ativo)
+                throw new RegraNegocioException("USUARIO_INATIVO", "Esse usuário está inativo.", 422);
+            if (user.Perfil != NomesPerfil.Encarregado)
+                throw new RegraNegocioException("PERFIL_INVALIDO", "Só usuário com perfil Encarregado pode ser vinculado à equipe.", 422);
+
+            var outras = await _db.Equipes
+                .Where(e => e.Id != equipe.Id && e.EncarregadoId == novoId)
+                .ToListAsync(cancellationToken);
+            foreach (var o in outras)
+                o.EncarregadoId = null;
+
+            user.EquipeId = equipe.Id;
+            equipe.EncarregadoId = novoId;
+            equipe.Encarregado = user;
+        }
+        else
+        {
+            equipe.EncarregadoId = null;
+            equipe.Encarregado = null;
+        }
+    }
+
     private static EquipeDto MapearEquipe(Equipe e, int presentes) => new()
     {
         Id = e.Id,
@@ -314,6 +379,7 @@ public class EquipeService : IEquipeService
         Cor = e.Cor,
         Ativa = e.Ativa,
         EncarregadoId = e.EncarregadoId,
+        EncarregadoNome = e.Encarregado?.NomeExibicao,
         Presentes = presentes
     };
 
@@ -328,6 +394,7 @@ public class EquipeService : IEquipeService
         Ativo = c.Ativo,
         OrigemCadastro = c.OrigemCadastro,
         // RN-13: CustoHora ausente do DTO de Encarregado.
-        CustoHora = incluirCusto ? c.CustoHora : null
+        CustoHora = incluirCusto ? c.CustoHora : null,
+        CodigoExterno = incluirCusto ? c.CodigoExterno : null
     };
 }

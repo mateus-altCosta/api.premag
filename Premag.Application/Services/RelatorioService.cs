@@ -30,6 +30,7 @@ public class RelatorioService : IRelatorioService
         string tipo,
         string periodo,
         Guid? obraId,
+        Guid? equipeId,
         UsuarioLogado quem,
         CancellationToken cancellationToken = default)
     {
@@ -50,6 +51,8 @@ public class RelatorioService : IRelatorioService
             .Where(f => f.Ativa && !f.Obra.Interna && !f.Etapa.Indireta);
         if (obraId is Guid oid)
             frentesQuery = frentesQuery.Where(f => f.ObraId == oid);
+        if (equipeId is Guid eid)
+            frentesQuery = frentesQuery.Where(f => f.EquipeId == eid);
 
         var frentes = await frentesQuery.OrderBy(f => f.Nome).ToListAsync(cancellationToken);
         var ids = frentes.Select(f => f.Id).ToList();
@@ -105,10 +108,21 @@ public class RelatorioService : IRelatorioService
             ? "Un. Est. é o aço estimado (kg) quando a frente tem taxa de armadura; nas demais, a quantidade feita na unidade da frente (m³, m², m). Consumo real de aço exige apontamento de insumo, hoje no almoxarifado."
             : "HH vêm do apontamento; a quantidade vem dos lançamentos na frente. O índice aparece como HH/m³, HH/kg etc., conforme a unidade da frente.";
 
+        var escopo = "todas as equipes";
+        if (equipeId is Guid eqFiltro)
+        {
+            var eqNome = await _db.Equipes.AsNoTracking()
+                .Where(e => e.Id == eqFiltro)
+                .Select(e => e.Nome)
+                .FirstOrDefaultAsync(cancellationToken);
+            escopo = string.IsNullOrWhiteSpace(eqNome) ? "equipe" : eqNome;
+        }
+
         return new RelatorioDto
         {
             Tipo = tipoNorm,
             Periodo = rotulo,
+            Escopo = escopo,
             Linhas = linhas,
             Nota = nota
         };
@@ -118,10 +132,11 @@ public class RelatorioService : IRelatorioService
         string tipo,
         string periodo,
         Guid? obraId,
+        Guid? equipeId,
         UsuarioLogado quem,
         CancellationToken cancellationToken = default)
     {
-        var rel = await ObterAsync(tipo, periodo, obraId, quem, cancellationToken);
+        var rel = await ObterAsync(tipo, periodo, obraId, equipeId, quem, cancellationToken);
         GarantirAmostraExportacao(rel, quem);
 
         var sb = new StringBuilder();
@@ -167,10 +182,11 @@ public class RelatorioService : IRelatorioService
         string tipo,
         string periodo,
         Guid? obraId,
+        Guid? equipeId,
         UsuarioLogado quem,
         CancellationToken cancellationToken = default)
     {
-        var rel = await ObterAsync(tipo, periodo, obraId, quem, cancellationToken);
+        var rel = await ObterAsync(tipo, periodo, obraId, equipeId, quem, cancellationToken);
         GarantirAmostraExportacao(rel, quem);
 
         QuestPDF.Settings.License = LicenseType.Community;
@@ -193,7 +209,7 @@ public class RelatorioService : IRelatorioService
                 page.Header().Column(col =>
                 {
                     col.Item().Text($"PREMAG — Relatório de {titulo.ToLowerInvariant()}").FontSize(16).Bold();
-                    col.Item().Text($"Período: {rel.Periodo}").FontSize(10).FontColor(Colors.Grey.Darken1);
+                    col.Item().Text($"Período: {rel.Periodo} · {rel.Escopo}").FontSize(10).FontColor(Colors.Grey.Darken1);
                 });
                 page.Content().Column(col =>
                 {

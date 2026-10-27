@@ -5,8 +5,11 @@ namespace Premag.Application.Interfaces.Services;
 
 public interface ICatalogoService
 {
-    Task<CatalogoDto> ObterAsync(CancellationToken cancellationToken = default);
+    Task<CatalogoDto> ObterAsync(UsuarioLogado? quem, CancellationToken cancellationToken = default);
     Task<CatalogoDto> AtualizarJornadaAsync(ConfiguracaoDto dto, UsuarioLogado quem, CancellationToken cancellationToken = default);
+    Task<MotivoParadaDto> CriarMotivoAsync(CriarMotivoParadaDto dto, UsuarioLogado quem, CancellationToken cancellationToken = default);
+    Task<MotivoParadaDto> AtualizarMotivoAsync(Guid id, CriarMotivoParadaDto dto, UsuarioLogado quem, CancellationToken cancellationToken = default);
+    Task InativarMotivoAsync(Guid id, UsuarioLogado quem, CancellationToken cancellationToken = default);
 }
 
 public interface IEquipeService
@@ -14,6 +17,7 @@ public interface IEquipeService
     Task<IReadOnlyList<EquipeDto>> ListarAsync(UsuarioLogado quem, CancellationToken cancellationToken = default);
     Task<EquipeDto> CriarAsync(CriarEquipeDto dto, UsuarioLogado quem, CancellationToken cancellationToken = default);
     Task<EquipeDto> AtualizarAsync(Guid id, CriarEquipeDto dto, UsuarioLogado quem, CancellationToken cancellationToken = default);
+    Task InativarAsync(Guid id, UsuarioLogado quem, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ColaboradorDto>> ListarColaboradoresAsync(Guid equipeId, UsuarioLogado quem, CancellationToken cancellationToken = default);
     Task<ColaboradorDto> CriarColaboradorAsync(CriarColaboradorDto dto, UsuarioLogado quem, CancellationToken cancellationToken = default);
     Task<ColaboradorDto> TransferirAsync(Guid colaboradorId, TransferirColaboradorDto dto, UsuarioLogado quem, CancellationToken cancellationToken = default);

@@ -19,4 +19,13 @@ public class PermissoesTests
     {
         Permissoes.Tem(NomesPerfil.Encarregado, Permissoes.Gerente).Should().BeFalse();
     }
+
+    [Fact]
+    public void Gerente_RedefineSoEncarregado()
+    {
+        Permissoes.PodeRedefinirSenha(NomesPerfil.Gerente, NomesPerfil.Encarregado).Should().BeTrue();
+        Permissoes.PodeRedefinirSenha(NomesPerfil.Gerente, NomesPerfil.Gerente).Should().BeFalse();
+        Permissoes.PodeRedefinirSenha(NomesPerfil.Encarregado, NomesPerfil.Encarregado).Should().BeFalse();
+        Permissoes.PodeRedefinirSenha(NomesPerfil.Admin, NomesPerfil.Diretoria).Should().BeTrue();
+    }
 }

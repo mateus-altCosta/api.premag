@@ -36,10 +36,12 @@ public class OcorrenciaService : IOcorrenciaService
         var query = _db.Ocorrencias.AsNoTracking()
             .Include(o => o.Colaborador)
             .Include(o => o.Frente)
+            .Include(o => o.ReconhecidaPor)
             .Where(o => o.Data == dia);
 
-        if (pendentes)
-            query = query.Where(o => o.ReconhecidaEm == null);
+        query = pendentes
+            ? query.Where(o => o.ReconhecidaEm == null)
+            : query.Where(o => o.ReconhecidaEm != null);
 
         if (!Permissoes.Tem(quem.Perfil, Permissoes.Gerente))
         {
@@ -104,6 +106,8 @@ public class OcorrenciaService : IOcorrenciaService
 
             var motivo = await _db.MotivosParada.FirstOrDefaultAsync(m => m.Id == dto.MotivoParadaId, cancellationToken)
                 ?? throw new RegraNegocioException("MOTIVO_NAO_ENCONTRADO", "Motivo de parada não encontrado.", 404);
+            if (!motivo.Ativo)
+                throw new RegraNegocioException("MOTIVO_INATIVO", "Esse motivo de parada não está mais em uso.", 422);
             var frenteParada = await _db.Frentes
                 .Include(f => f.Obra)
                 .Include(f => f.Etapa)
@@ -318,7 +322,9 @@ public class OcorrenciaService : IOcorrenciaService
             DetectadaEm = o.DetectadaEm,
             MinutosDecorridos = o.MinutosDecorridos,
             ReconhecidaEm = o.ReconhecidaEm,
-            Justificativa = o.Justificativa
+            ReconhecidaPorNome = o.ReconhecidaPor?.NomeExibicao,
+            Justificativa = o.Justificativa,
+            GerouParada = o.ApontamentoGeradoId is not null
         };
     }
 

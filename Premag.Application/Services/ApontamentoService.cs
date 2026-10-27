@@ -103,6 +103,7 @@ public class ApontamentoService : IApontamentoService
                 MinutosOciosos = ocioso,
                 // RN-13: CustoHora ausente para Encarregado.
                 CustoHora = Permissoes.Tem(quem.Perfil, Permissoes.Gerente) ? c.CustoHora : null,
+                CodigoExterno = Permissoes.Tem(quem.Perfil, Permissoes.Gerente) ? c.CodigoExterno : null,
                 Aberto = aberto is null ? null : Mapear(aberto),
                 Apontamentos = lista.Select(Mapear).ToList()
             };
@@ -125,7 +126,7 @@ public class ApontamentoService : IApontamentoService
             obrasQuery = obrasQuery.Where(o => obrasDaEquipe.Contains(o.Id));
         }
         var obras = await obrasQuery.OrderBy(o => o.Nome).ToListAsync(cancellationToken);
-        var motivos = await _db.MotivosParada.AsNoTracking().OrderBy(m => m.Nome).ToListAsync(cancellationToken);
+        var motivos = await _db.MotivosParada.AsNoTracking().Where(m => m.Ativo).OrderBy(m => m.Nome).ToListAsync(cancellationToken);
 
         return new TurnoDto
         {
@@ -177,7 +178,8 @@ public class ApontamentoService : IApontamentoService
             {
                 Id = m.Id,
                 Nome = m.Nome,
-                ExigeObservacao = m.ExigeObservacao
+                ExigeObservacao = m.ExigeObservacao,
+                Ativo = m.Ativo
             }).ToList()
         };
     }
@@ -252,7 +254,7 @@ public class ApontamentoService : IApontamentoService
                 if (motivoId is null && !string.IsNullOrWhiteSpace(dto.Observacao))
                 {
                     var outro = await _db.MotivosParada.AsNoTracking()
-                        .FirstOrDefaultAsync(m => m.ExigeObservacao, cancellationToken);
+                        .FirstOrDefaultAsync(m => m.ExigeObservacao && m.Ativo, cancellationToken);
                     motivoId = outro?.Id;
                 }
                 if (motivoId is null)
@@ -260,6 +262,8 @@ public class ApontamentoService : IApontamentoService
 
                 var motivo = await _db.MotivosParada.FirstOrDefaultAsync(m => m.Id == motivoId, cancellationToken)
                     ?? throw new RegraNegocioException("MOTIVO_NAO_ENCONTRADO", "Motivo de parada não encontrado.", 404);
+                if (!motivo.Ativo)
+                    throw new RegraNegocioException("MOTIVO_INATIVO", "Esse motivo de parada não está mais em uso.", 422);
                 if (motivo.ExigeObservacao && string.IsNullOrWhiteSpace(dto.Observacao))
                     throw new RegraNegocioException("OBSERVACAO_OBRIGATORIA", "Este motivo exige observação.", 422);
 
@@ -611,8 +615,11 @@ public class ApontamentoService : IApontamentoService
     {
         var id = equipeId ?? quem.EquipeId
             ?? throw new RegraNegocioException("EQUIPE_OBRIGATORIA", "Informe a equipe.", 422);
-        return await _db.Equipes.FirstOrDefaultAsync(e => e.Id == id, cancellationToken)
+        var equipe = await _db.Equipes.FirstOrDefaultAsync(e => e.Id == id, cancellationToken)
             ?? throw new RegraNegocioException("EQUIPE_NAO_ENCONTRADA", "Equipe não encontrada.", 404);
+        if (!equipe.Ativa)
+            throw new RegraNegocioException("EQUIPE_INATIVA", "Essa equipe não está mais em uso.", 422);
+        return equipe;
     }
 
     private static void GarantirEscopoEquipe(UsuarioLogado quem, Guid equipeId)

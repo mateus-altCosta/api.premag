@@ -106,6 +106,7 @@ public class TurnoColaboradorDto
     public int MinutosOciosos { get; set; }
     /// <summary>RN-13: só Gerente ou acima.</summary>
     public decimal? CustoHora { get; set; }
+    public string? CodigoExterno { get; set; }
     public ApontamentoDto? Aberto { get; set; }
     public IReadOnlyList<ApontamentoDto> Apontamentos { get; set; } = [];
 }

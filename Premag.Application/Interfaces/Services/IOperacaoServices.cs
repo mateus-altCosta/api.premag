@@ -30,9 +30,9 @@ public interface IOcorrenciaService
 
 public interface IRelatorioService
 {
-    Task<RelatorioDto> ObterAsync(string tipo, string periodo, Guid? obraId, UsuarioLogado quem, CancellationToken cancellationToken = default);
-    Task<byte[]> GerarCsvAsync(string tipo, string periodo, Guid? obraId, UsuarioLogado quem, CancellationToken cancellationToken = default);
-    Task<byte[]> GerarPdfAsync(string tipo, string periodo, Guid? obraId, UsuarioLogado quem, CancellationToken cancellationToken = default);
+    Task<RelatorioDto> ObterAsync(string tipo, string periodo, Guid? obraId, Guid? equipeId, UsuarioLogado quem, CancellationToken cancellationToken = default);
+    Task<byte[]> GerarCsvAsync(string tipo, string periodo, Guid? obraId, Guid? equipeId, UsuarioLogado quem, CancellationToken cancellationToken = default);
+    Task<byte[]> GerarPdfAsync(string tipo, string periodo, Guid? obraId, Guid? equipeId, UsuarioLogado quem, CancellationToken cancellationToken = default);
 }
 
 public interface IImportacaoService

@@ -59,3 +59,20 @@ public class AlterarSenhaDto
     [MinLength(8, ErrorMessage = "A senha nova precisa ter pelo menos 8 caracteres")]
     public string SenhaNova { get; set; } = string.Empty;
 }
+
+public class RedefinirSenhaDto
+{
+    [Required(ErrorMessage = "Senha nova é obrigatória")]
+    [MinLength(8, ErrorMessage = "A senha nova precisa ter pelo menos 8 caracteres")]
+    public string SenhaNova { get; set; } = string.Empty;
+}
+
+public class UsuarioListaDto
+{
+    public Guid Id { get; set; }
+    public string UserName { get; set; } = string.Empty;
+    public string Nome { get; set; } = string.Empty;
+    public string Perfil { get; set; } = string.Empty;
+    public Guid? EquipeId { get; set; }
+    public string? EquipeNome { get; set; }
+}

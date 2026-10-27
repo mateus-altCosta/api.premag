@@ -72,7 +72,9 @@ public class OcorrenciaDto
     public DateTimeOffset DetectadaEm { get; set; }
     public int? MinutosDecorridos { get; set; }
     public DateTimeOffset? ReconhecidaEm { get; set; }
+    public string? ReconhecidaPorNome { get; set; }
     public string? Justificativa { get; set; }
+    public bool GerouParada { get; set; }
 }
 
 public class ReconhecerOcorrenciaDto
@@ -104,6 +106,7 @@ public class RelatorioDto
 {
     public string Tipo { get; set; } = "produtividade";
     public string Periodo { get; set; } = "hoje";
+    public string Escopo { get; set; } = "todas as equipes";
     public IReadOnlyList<RelatorioLinhaDto> Linhas { get; set; } = [];
     public string Nota { get; set; } = string.Empty;
 }
